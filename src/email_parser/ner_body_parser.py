@@ -1,0 +1,265 @@
+"""NER and regex-based body parser using spaCy.
+
+This module implements a parser that uses Named Entity Recognition (NER)
+and regex patterns to extract investment opportunity data from email body text.
+"""
+
+import re
+from pathlib import Path
+from typing import List, Optional, Set
+
+import spacy
+from spacy.language import Language
+
+from email_parser.base import BaseParser, EmailData, InvestmentOpportunity, ParserResult
+from email_parser.utils import (
+    extract_canadian_provinces,
+    extract_ebitda,
+    extract_location,
+    normalize_text,
+)
+
+
+class NERBodyParser(BaseParser):
+    """Parser that uses spaCy NER and regex to extract data from email body text.
+    
+    This parser uses traditional NLP techniques including:
+    - Named Entity Recognition for locations and organizations
+    - Regex patterns for EBITDA extraction
+    - Rule-based extraction for specific fields
+    """
+    
+    def __init__(self, model_name: str = "en_core_web_sm"):
+        """Initialize NER body parser.
+        
+        Args:
+            model_name: spaCy model name to use
+                - "en_core_web_sm": Small model (faster, less accurate)
+                - "en_core_web_md": Medium model (balanced)
+                - "en_core_web_trf": Transformer model (slower, more accurate)
+        """
+        super().__init__(name="NER-Body-Parser")
+        
+        self.model_name = model_name
+        self.nlp = self._load_spacy_model(model_name)
+        
+        self.logger.info(f"Initialized NER parser with spaCy model: {model_name}")
+    
+    def _load_spacy_model(self, model_name: str) -> Language:
+        """Load spaCy language model.
+        
+        Args:
+            model_name: Name of spaCy model
+            
+        Returns:
+            Loaded spaCy Language object
+            
+        Raises:
+            OSError: If model is not installed
+        """
+        try:
+            return spacy.load(model_name)
+        except OSError:
+            self.logger.error(f"spaCy model '{model_name}' not found. Installing...")
+            import subprocess
+            subprocess.run(["python", "-m", "spacy", "download", model_name], check=True)
+            return spacy.load(model_name)
+    
+    def _extract_company_name(self, text: str, subject: Optional[str]) -> Optional[str]:
+        """Extract company or project name from text.
+        
+        Args:
+            text: Email body text
+            subject: Email subject line
+            
+        Returns:
+            Company name or None
+        """
+        # First try subject line for "Project X" patterns
+        if subject:
+            # Match "Project X" or company names
+            project_match = re.search(r'Project\s+([A-Z][a-zA-Z]+)', subject)
+            if project_match:
+                return f"Project {project_match.group(1)}"
+            
+            # Match company names after common prefixes
+            for prefix in ['Acquisition Opportunity - ', 'Investment Opportunity - ', 
+                          'Acquisition Opportunity: ', 'Investment Opportunity: ']:
+                if subject.startswith(prefix):
+                    name = subject[len(prefix):].split('(')[0].strip()
+                    if name:
+                        return name[:100]  # Limit length
+        
+        # Use NER to find organization names
+        doc = self.nlp(text[:1000])  # Only process first 1000 chars
+        orgs = [ent.text for ent in doc.ents if ent.label_ == 'ORG']
+        
+        if orgs:
+            # Return first organization that's not too long
+            for org in orgs:
+                if len(org) < 50 and not org.lower() in ['krystal', 'gp', 'growth partners']:
+                    return org
+        
+        return None
+    
+    def _extract_sector(self, text: str) -> Optional[str]:
+        """Extract industry sector from text.
+        
+        Args:
+            text: Email body text
+            
+        Returns:
+            Sector name or None
+        """
+        # Common sector keywords from results.csv
+        sectors = {
+            'Retail': ['retail', 'retailer', 'store', 'shop', 'apparel'],
+            'Building Products': ['building products', 'construction', 'contractor', 
+                                'manufacturer', 'building supplies'],
+            'Business Services': ['business services', 'consulting', 'services provider'],
+            'Transportation Services': ['transportation', 'logistics', 'trucking', 
+                                       'shipping', 'fleet'],
+            'Healthcare': ['healthcare', 'medical', 'health services', 'clinic'],
+            'Industrial Products': ['industrial', 'manufacturing', 'fabrication'],
+            'Consumer Services': ['consumer services', 'restaurant', 'hospitality'],
+            'Other': [],
+        }
+        
+        text_lower = text.lower()
+        
+        for sector, keywords in sectors.items():
+            for keyword in keywords:
+                if keyword in text_lower:
+                    return sector
+        
+        return None
+    
+    def _extract_locations_ner(self, text: str) -> List[str]:
+        """Extract location entities using NER.
+        
+        Args:
+            text: Text to analyze
+            
+        Returns:
+            List of location strings
+        """
+        doc = self.nlp(text[:2000])  # Process first 2000 chars
+        
+        locations = []
+        for ent in doc.ents:
+            if ent.label_ in ['GPE', 'LOC']:  # Geo-political entity or location
+                locations.append(ent.text)
+        
+        return locations
+    
+    def _determine_hq_location(self, text: str, subject: Optional[str]) -> Optional[str]:
+        """Determine headquarters location from email.
+        
+        Combines multiple strategies:
+        1. Pattern matching for "based in", "located in", etc.
+        2. NER for location entities
+        3. Canadian province detection
+        
+        Args:
+            text: Email body text
+            subject: Email subject line
+            
+        Returns:
+            HQ location string or None
+        """
+        # Try pattern-based extraction first
+        pattern_location = extract_location(text)
+        if pattern_location:
+            return pattern_location
+        
+        # Try NER-based extraction
+        ner_locations = self._extract_locations_ner(text)
+        
+        # Filter for Canadian locations (common in results.csv)
+        provinces = extract_canadian_provinces(text)
+        
+        # Prioritize locations with Canadian provinces
+        for location in ner_locations:
+            for province in provinces:
+                if province in location:
+                    return location
+        
+        # Return first NER location if found
+        if ner_locations:
+            return ner_locations[0]
+        
+        # Return province if found
+        if provinces:
+            return provinces[0]
+        
+        return None
+    
+    def parse_data(self, email_data: EmailData) -> InvestmentOpportunity:
+        """Parse email data using NER and regex to extract investment opportunity.
+        
+        Args:
+            email_data: Extracted email data
+            
+        Returns:
+            InvestmentOpportunity with extracted fields
+        """
+        # Extract source domain from sender
+        source_domain = self.extract_domain(email_data.sender) if email_data.sender else None
+        
+        # Identify recipient
+        recipient = email_data.recipients[0] if email_data.recipients else None
+        
+        # Get email body text
+        body_text = email_data.body_plain or email_data.body_html or ""
+        subject = email_data.subject or ""
+        
+        # Normalize text
+        body_text = normalize_text(body_text)
+        
+        # Extract EBITDA
+        ebitda_result = extract_ebitda(body_text)
+        ebitda_millions = ebitda_result[0] if ebitda_result else None
+        raw_ebitda_text = ebitda_result[1] if ebitda_result else None
+        
+        # Extract HQ location
+        hq_location = self._determine_hq_location(body_text, subject)
+        
+        # Extract company name
+        company_name = self._extract_company_name(body_text, subject)
+        
+        # Extract sector
+        sector = self._extract_sector(body_text)
+        
+        opportunity = InvestmentOpportunity(
+            source_domain=source_domain,
+            recipient=recipient,
+            hq_location=hq_location,
+            ebitda_millions=ebitda_millions,
+            date=email_data.date,
+            company_name=company_name,
+            sector=sector,
+            raw_ebitda_text=raw_ebitda_text,
+        )
+        
+        self.logger.info(
+            f"Extracted: EBITDA=${opportunity.ebitda_millions}M, "
+            f"Location={opportunity.hq_location}, Company={opportunity.company_name}"
+        )
+        
+        return opportunity
+    
+    def parse(self, msg_path: Path) -> ParserResult:
+        """Parse a .msg file using NER-based extraction.
+        
+        Overrides base method to set extraction_source correctly.
+        
+        Args:
+            msg_path: Path to the .msg file
+            
+        Returns:
+            ParserResult with extracted data
+        """
+        result = super().parse(msg_path)
+        result.extraction_source = "body"
+        return result
+
