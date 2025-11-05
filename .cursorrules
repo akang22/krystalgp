@@ -1,0 +1,128 @@
+# Software Engineering Best Practices for Email Parser Project
+
+## Code Quality Standards
+
+### Documentation
+- Use Google-style docstrings for all modules, classes, and functions
+- Include type hints for all function parameters and return values
+- Document assumptions, edge cases, and design decisions in comments
+- Keep inline comments meaningful and up-to-date
+- Add module-level docstrings explaining purpose and usage
+
+### Type Hints
+- Use type hints everywhere (functions, methods, class attributes)
+- Import from `typing` module: `Optional, List, Dict, Tuple, Union, Any`
+- Use Pydantic models for structured data validation
+- Use `TypedDict` for complex dictionary structures
+
+### Code Structure
+- Keep functions small and focused (single responsibility)
+- Maximum function length: ~50 lines
+- Maximum file length: ~500 lines
+- Extract complex logic into helper functions
+- Use descriptive variable and function names
+
+### Error Handling
+- Use specific exception types, not bare `except:`
+- Add meaningful error messages with context
+- Log errors with appropriate levels (DEBUG, INFO, WARNING, ERROR)
+- Handle edge cases explicitly
+
+### Testing
+- Write tests for all parsing logic
+- Aim for >80% code coverage
+- Use pytest fixtures for test data
+- Test edge cases and error conditions
+- Mock external API calls (OpenAI, HuggingFace)
+
+## Git Commit Guidelines
+
+### Commit Messages
+- Use imperative mood: "Add feature" not "Added feature"
+- First line: concise summary (50 chars or less)
+- Optional body: detailed explanation after blank line
+- Reference issues/todos if applicable
+
+### Commit Frequency
+- Make small, focused commits
+- Commit after each logical unit of work
+- Don't bundle unrelated changes
+- Commit working code (passes basic tests)
+
+### Example Commit Messages
+```
+Add Pydantic models for parser output
+
+- Create InvestmentOpportunity model
+- Add ParserResult for tracking extraction source
+- Include bounding box coordinates for visualization
+
+Initialize project structure with UV and Git
+
+Implement LLM-based body parser
+
+- Add OpenAI GPT-4 integration
+- Design structured output prompt
+- Handle rate limiting and retries
+```
+
+## Module Organization
+
+### Import Order
+1. Standard library imports
+2. Third-party imports
+3. Local application imports
+4. Blank line between each group
+
+### File Organization
+```python
+"""Module docstring."""
+
+# Imports
+import os
+from typing import Optional, List
+
+import pandas as pd
+from pydantic import BaseModel
+
+from email_parser.base import BaseParser
+
+# Constants
+DEFAULT_TIMEOUT = 30
+
+# Classes and functions
+class MyClass:
+    """Class docstring."""
+    pass
+
+def my_function() -> str:
+    """Function docstring."""
+    pass
+```
+
+## Project-Specific Guidelines
+
+### Parser Implementation
+- Each parser should inherit from `BaseParser`
+- Return standardized `ParserResult` objects
+- Handle missing data gracefully (don't crash)
+- Log extraction confidence when available
+
+### Data Validation
+- Use Pydantic for all data models
+- Validate inputs before processing
+- Normalize extracted values (e.g., EBITDA to float)
+- Document validation rules
+
+### Performance
+- Cache expensive operations (model loading)
+- Use async/await for concurrent API calls
+- Add timeout parameters to prevent hanging
+- Log processing time for performance monitoring
+
+### Configuration
+- Use environment variables for API keys
+- Create `.env.example` template
+- Document all configuration options
+- Use sensible defaults
+

@@ -1,0 +1,78 @@
+[project]
+name = "email-parser"
+version = "0.1.0"
+description = "Email parser for investment opportunity extraction"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    # Email parsing
+    "extract-msg>=0.48.0",
+    
+    # LLM and AI
+    "openai>=1.12.0",
+    
+    # NER and NLP
+    "spacy>=3.7.0",
+    
+    # OCR
+    "pytesseract>=0.3.10",
+    "easyocr>=1.7.0",
+    
+    # PDF and image processing
+    "pdf2image>=1.17.0",
+    "python-docx>=1.1.0",
+    "Pillow>=10.2.0",
+    
+    # HuggingFace transformers
+    "transformers>=4.37.0",
+    "torch==1.13.1",  # Last release supporting Intel Mac (x86_64)
+    
+    # Web framework
+    "streamlit>=1.31.0",
+    
+    # Data handling
+    "pandas>=2.2.0",
+    "pydantic>=2.6.0",
+    
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "tqdm>=4.66.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "black>=24.1.0",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+    "ipython>=8.20.0",
+    "jupyter>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --cov=src --cov-report=html --cov-report=term"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
