@@ -1,0 +1,18 @@
+email_file,source_domain,recipient,hq_location,ebitda_millions,company_name,sector,data_source,notes
+"Project Aberdeen - Krystal Growth Partners .msg",,,,,Project Aberdeen,,,Manual review needed
+"FW Project Toro.msg",sequeira.com,,,,Project Toro,Other,body,"From results.csv: $10.0M EBITDA, Frozen seafood importer"
+"FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg",kpmg.ca,,,4.5,Project Gravy,Consumer Services,body,"From results.csv: Quick Service Restaurant, $4.5M EBITDA"
+"FW 2025 Estimated $63.4M $5.2M Cold Plunge Sauna Company.msg",,,,5.2,Reboot Labs LLC dba Plunge,Retail,attachment,"From filename and results.csv: $5.2M EBITDA"
+"FW Project Kiln Acquisition Opportunity for Canadian StirredKettle Foods Business.msg",originmerchant.com,,,10.0,Project Kiln,Other,body,"Food manufacturer, $10.0M EBITDA"
+"FW Project Elevate - Opportunity to acquire a highly regarded data driven marketing agency.msg",bdo.ca,,,1.1,Project Elevate,Business Services,body,"Marketing Agency, $1.1M EBITDA"
+"Fwd_ Acquisition Opportunity - Infrared Sauna Business.msg",,,,9.2,Project Mahogany,Other,attachment,"Designer and manufacturer of infrared saunas, $9.2M EBITDA"
+"FW Transaction Opportunity - Leading Canadian Regional Airline.msg",capitalwest.com,,BC,15.5,Project Altitude (Pacific Coastal Airline),Consumer Services,body,"Regional Airline servicing small towns in BC, $15.5M EBITDA"
+"RE Project Monstera - Rapidly Growing Auto Aftermarket Distributor.msg",national bank.com,,,5.8,Project Monstera,Other,body,"Auto aftermarket distributor, $5.8M EBITDA"
+"Acquisition Opportunity - Project Cedar.msg",bdo.ca,,,8.5,Project Cedar,Other,body,"Custom Log and Timber Home builder, $8.5M EBITDA"
+"FW Investment Opportunity adtrackmedia C$10M+ Growth Equity Raise.msg",fortcapital.com,,,,Project Metro (AdTrackMedia),Other,body,"LED ad technology, n.a. EBITDA (VC)"
+"RE_ For Krystal Growth Partners_ Acquisition Opportunity – Elevator Handrail & Safety Barricade Manufacturer (Western Canada).msg",mnp.ca,,,2.5,Lustre Products,Building Products,attachment,"Manufacturer of handrail systems, $2.5M EBITDA"
+"FW SISP - Teaser - Special D Baking Ltd.  Land Assembly Company (Edmonton) Ltd. .msg",ernst-young.com,,,, Special D Baking,Other,attachment,"Doughnut manufacturer, n.a. EBITDA (Restructure)"
+"Acquisition Opportunity - Fishing and Seafood Distribution Leader.msg",,,,,,Other,attachment,Manual review needed - fishing/seafood
+"Acquisition Opportunity - Leading Western Canadian Transportation Services Provider.msg",,,,,,Transportation Services,body,Manual review needed
+"Project Provision_ Acquisition Opportunity – Midwest Foodservice Distributor with $30M Revenue.msg",,,,,,Business Services,body,Foodservice distributor - EBITDA not in subject
+
