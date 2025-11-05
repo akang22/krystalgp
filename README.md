@@ -95,31 +95,69 @@ krystalgp/
 
 ## Usage
 
-### Running Parsers Programmatically
+### Quick Start
 
-```python
-from email_parser.llm_body_parser import LLMBodyParser
-from email_parser.ocr_attachment_parser import OCRAttachmentParser
+1. **Set up your environment variables:**
 
-# Initialize parsers
-llm_parser = LLMBodyParser()
-ocr_parser = OCRAttachmentParser()
-
-# Parse an email
-email_path = "sample_emails/Project Aberdeen - Krystal Growth Partners .msg"
-result = llm_parser.parse(email_path)
-
-print(f"EBITDA: ${result.ebitda}M")
-print(f"HQ Location: {result.hq_location}")
+```bash
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
 ```
 
-### Running the Streamlit Dashboard
+2. **Download spaCy model:**
+
+```bash
+uv run python -m spacy download en_core_web_sm
+```
+
+3. **Run the Streamlit dashboard:**
 
 ```bash
 uv run streamlit run streamlit_app.py
 ```
 
 Navigate to `http://localhost:8501` to view the dashboard.
+
+### Running Parsers Programmatically
+
+```python
+from pathlib import Path
+from email_parser.llm_body_parser import LLMBodyParser
+from email_parser.ner_body_parser import NERBodyParser
+from email_parser.ocr_attachment_parser import OCRAttachmentParser
+
+# Initialize parsers
+llm_parser = LLMBodyParser()  # Requires OPENAI_API_KEY
+ner_parser = NERBodyParser()  # No API key needed
+ocr_parser = OCRAttachmentParser()  # Requires OPENAI_API_KEY
+
+# Parse an email
+email_path = Path("sample_emails/Project Aberdeen - Krystal Growth Partners .msg")
+result = llm_parser.parse(email_path)
+
+# Access extracted data
+opportunity = result.opportunity
+print(f"Source: {opportunity.source_domain}")
+print(f"Recipient: {opportunity.recipient}")
+print(f"EBITDA: ${opportunity.ebitda_millions}M")
+print(f"HQ Location: {opportunity.hq_location}")
+print(f"Company: {opportunity.company_name}")
+print(f"Processing Time: {result.processing_time_seconds:.2f}s")
+```
+
+### Running Full Evaluation
+
+Run all parsers on the entire dataset and generate comparison metrics:
+
+```bash
+uv run python scripts/run_evaluation.py
+```
+
+This will:
+- Process all emails in `ground_truth_labels.csv`
+- Run all available parsers
+- Generate accuracy metrics
+- Save results to `data/comparison_results.csv`
 
 ### Running Tests
 
@@ -131,22 +169,55 @@ uv run pytest
 uv run pytest --cov=src --cov-report=html
 
 # Run specific test file
-uv run pytest tests/test_parsers.py
+uv run pytest tests/test_parsers.py -v
+
+# Run tests without API calls (skip LLM tests)
+uv run pytest -m "not requires_api"
+```
+
+### Creating Ground Truth Labels
+
+To add more ground truth labels:
+
+```bash
+# Run helper script (requires API key)
+uv run python scripts/create_ground_truth.py
+
+# Manually edit data/ground_truth_labels.csv
+# Verify EBITDA values against results.csv and source documents
 ```
 
 ## Parsing Approaches
 
-### 1. LLM Body Parser
-Uses OpenAI's GPT-4 to extract structured data from email body text. Provides high accuracy for natural language understanding but requires API calls.
+The system combines **body parsers** (for email text) with **attachment parsers** (for PDF/images):
 
-### 2. NER Body Parser
-Uses spaCy's Named Entity Recognition combined with regex patterns. Fast and works offline, but may miss context-dependent information.
+### Body Parsers
 
-### 3. OCR + LLM Attachment Parser
-Converts PDF attachments to images, applies OCR, then uses LLM for extraction. Best for scanned documents or PDFs without text layer.
+#### 1. LLM Body Parser (`llm_body_parser.py`)
+- **Method**: OpenAI GPT-4 with structured JSON output
+- **Pros**: High accuracy, understands context and nuance
+- **Cons**: Requires API key, slower, costs per email
+- **Best for**: Complex email body text with varied formats
 
-### 4. Layout-Aware Attachment Parser
-Uses specialized document understanding models (LayoutLMv3) or vision models (GPT-4-Vision) to understand document structure and layout. Best for structured documents like teasers and pitch decks.
+#### 2. NER Body Parser (`ner_body_parser.py`)
+- **Method**: spaCy NER + regex patterns
+- **Pros**: Fast, works offline, no API costs
+- **Cons**: Lower accuracy, struggles with complex patterns
+- **Best for**: Baseline comparison, high-volume processing
+
+### Attachment Parsers
+
+#### 3. OCR + LLM Attachment Parser (`ocr_attachment_parser.py`)
+- **Method**: Pytesseract OCR → GPT-4 for extraction
+- **Pros**: Works on scanned PDFs, extracts bounding boxes
+- **Cons**: OCR quality varies, slower processing
+- **Best for**: Scanned documents, need bounding box coordinates
+
+#### 4. Layout-Aware LLM Parser (`layout_attachment_parser.py`)
+- **Method**: GPT-4-Vision for direct image/PDF analysis
+- **Pros**: Understands visual layout, tables, charts
+- **Cons**: Requires vision model access, highest API cost
+- **Best for**: Complex structured documents (pitch decks, CIMs)
 
 ## Evaluation Metrics
 
@@ -181,6 +252,57 @@ See `.cursorrules` for detailed guidelines.
 ## License
 
 MIT License
+
+## Troubleshooting
+
+### Import Errors
+
+If you see import errors, ensure you're using `uv run`:
+
+```bash
+uv run python scripts/run_evaluation.py
+uv run streamlit run streamlit_app.py
+```
+
+### spaCy Model Not Found
+
+Download the required model:
+
+```bash
+uv run python -m spacy download en_core_web_sm
+```
+
+### OpenAI API Errors
+
+Check that your API key is set:
+
+```bash
+echo $OPENAI_API_KEY
+# or check .env file
+```
+
+### Tesseract Not Found (for OCR)
+
+Install Tesseract:
+
+```bash
+# macOS
+brew install tesseract
+
+# Ubuntu/Debian
+sudo apt-get install tesseract-ocr
+
+# Set path in .env
+TESSERACT_CMD=/opt/homebrew/bin/tesseract
+```
+
+## Next Steps
+
+1. **Verify Ground Truth**: Review and correct `data/ground_truth_labels.csv`
+2. **Run Evaluation**: Execute `scripts/run_evaluation.py` to test accuracy
+3. **Explore Dashboard**: Launch Streamlit app to visualize results
+4. **Iterate**: Improve prompts, add more test cases, tune extraction logic
+5. **Production**: Deploy chosen approach for processing new emails
 
 ## Contact
 
