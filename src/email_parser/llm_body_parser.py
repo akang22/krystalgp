@@ -13,7 +13,6 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from email_parser.base import BaseParser, EmailData, InvestmentOpportunity, ParserResult
-from email_parser.utils import extract_domain
 
 
 class LLMBodyParser(BaseParser):
