@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import pytesseract
+from dotenv import load_dotenv
 from openai import OpenAI
 from pdf2image import convert_from_bytes
 from PIL import Image
@@ -24,6 +25,9 @@ from email_parser.base import (
     InvestmentOpportunity,
     ParserResult,
 )
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class OCRAttachmentParser(BaseParser):

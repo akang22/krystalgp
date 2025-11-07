@@ -9,10 +9,14 @@ import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import ValidationError
 
 from email_parser.base import BaseParser, EmailData, InvestmentOpportunity, ParserResult
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class LLMBodyParser(BaseParser):
