@@ -109,7 +109,8 @@ cp .env.example .env
 2. **Download spaCy model:**
 
 ```bash
-uv run python -m spacy download en_core_web_sm
+# Use uv pip to install the spaCy model directly
+uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 ```
 
 3. **Run the Streamlit dashboard:**
@@ -268,11 +269,13 @@ uv run streamlit run streamlit_app.py
 
 ### spaCy Model Not Found
 
-Download the required model:
+Download the required model using `uv pip`:
 
 ```bash
-uv run python -m spacy download en_core_web_sm
+uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 ```
+
+**Why not `python -m spacy download`?** UV creates virtual environments without `pip` by default, so we use `uv pip install` directly.
 
 ### OpenAI API Errors
 
