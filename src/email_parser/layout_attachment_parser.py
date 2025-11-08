@@ -41,7 +41,7 @@ class LayoutLLMParser(BaseParser):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "gpt-4-vision-preview",
+        model: str = "gpt-4o",  # Updated from deprecated gpt-4-vision-preview
         temperature: float = 0.1,
         max_tokens: int = 4096,
     ):

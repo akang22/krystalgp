@@ -64,11 +64,20 @@ class OCRAttachmentParser(BaseParser):
         self.model = model
         self.temperature = temperature
         
-        # Configure tesseract if custom path provided
+        # Configure tesseract path
         if tesseract_cmd:
             pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
         elif os.getenv('TESSERACT_CMD'):
             pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_CMD')
+        else:
+            # Try common tesseract locations
+            import shutil
+            tesseract_path = shutil.which('tesseract')
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                self.logger.info(f"Found tesseract at: {tesseract_path}")
+            else:
+                self.logger.warning("Tesseract not found in PATH. OCR may not work.")
         
         self.logger.info(f"Initialized OCR parser with model: {model}")
     
