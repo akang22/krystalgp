@@ -200,19 +200,19 @@ class EnsembleParser(BaseParser):
     def _confidence_weighted(
         self,
         results: List[Tuple[str, ParserResult]]
-    ) -> Optional[float]:
-        """Weight values by parser confidence.
+    ) -> Tuple[Optional[float], str]:
+        """Select value with highest confidence score.
         
         Assigns confidence scores based on:
         - Parser type (LLM > Vision > NER > OCR)
         - Extraction source (attachment > body)
-        - Processing time (faster = more reliable patterns)
+        - Has raw text evidence
         
         Args:
             results: List of (parser_name, result) tuples
             
         Returns:
-            Weighted average EBITDA value
+            Tuple of (selected_ebitda_value, selection_reason)
         """
         # Define confidence weights
         parser_weights = {
@@ -228,8 +228,9 @@ class EnsembleParser(BaseParser):
             'both': 1.1,
         }
         
-        weighted_sum = 0.0
-        total_weight = 0.0
+        best_value = None
+        best_score = 0.0
+        best_source = ""
         
         for name, result in results:
             ebitda = result.opportunity.ebitda_millions
@@ -237,21 +238,20 @@ class EnsembleParser(BaseParser):
             if ebitda is None:
                 continue
             
-            # Calculate weight
-            weight = parser_weights.get(name, 0.5)
-            weight *= source_weights.get(result.extraction_source, 1.0)
+            # Calculate confidence score
+            score = parser_weights.get(name, 0.5)
+            score *= source_weights.get(result.extraction_source, 1.0)
             
             # Bonus for having raw text (higher confidence)
             if result.opportunity.raw_ebitda_text:
-                weight *= 1.1
+                score *= 1.1
             
-            weighted_sum += ebitda * weight
-            total_weight += weight
+            if score > best_score:
+                best_score = score
+                best_value = ebitda
+                best_source = f"{name} (score: {score:.2f})"
         
-        if total_weight > 0:
-            return weighted_sum / total_weight
-        
-        return None
+        return best_value, best_source
     
     def _validate_against_historical(
         self,
@@ -314,6 +314,8 @@ class EnsembleParser(BaseParser):
     ) -> InvestmentOpportunity:
         """Combine results from multiple parsers using specified strategy.
         
+        IMPORTANT: Does NOT average values. Selects the best value based on confidence.
+        
         Args:
             results: List of (parser_name, result) tuples
             strategy: Combining strategy ('majority', 'weighted', 'prioritized', 'all')
@@ -331,29 +333,30 @@ class EnsembleParser(BaseParser):
         final_ebitda = None
         tie_break_method = "unknown"
         
-        if strategy == 'all' or strategy == 'weighted':
-            # Try confidence-weighted first (best overall)
-            final_ebitda = self._confidence_weighted(results)
-            if final_ebitda:
-                tie_break_method = "confidence_weighted"
-        
-        if final_ebitda is None and (strategy == 'all' or strategy == 'fuzzy'):
-            # Try fuzzy consensus
-            final_ebitda = self._fuzzy_consensus(ebitda_values)
-            if final_ebitda:
-                tie_break_method = "fuzzy_consensus"
+        if strategy == 'all' or strategy == 'fuzzy':
+            # Try fuzzy consensus first - if values are close, they're the same
+            consensus = self._fuzzy_consensus(ebitda_values, tolerance=0.5)
+            if consensus:
+                final_ebitda = consensus
+                tie_break_method = "fuzzy_consensus (values within ±$0.5M)"
         
         if final_ebitda is None and (strategy == 'all' or strategy == 'majority'):
-            # Try majority vote
+            # Try majority vote - if multiple parsers agree exactly
             final_ebitda = self._majority_vote(ebitda_values)
             if final_ebitda:
                 tie_break_method = "majority_vote"
+        
+        if final_ebitda is None and (strategy == 'all' or strategy == 'weighted'):
+            # Select value with highest confidence (DON'T AVERAGE)
+            final_ebitda, reason = self._confidence_weighted(results)
+            if final_ebitda:
+                tie_break_method = f"confidence_selection: {reason}"
         
         if final_ebitda is None and (strategy == 'all' or strategy == 'prioritized'):
             # Try source prioritization
             final_ebitda = self._source_prioritized(results)
             if final_ebitda:
-                tie_break_method = "source_prioritized"
+                tie_break_method = "source_prioritized (attachment > body)"
         
         if final_ebitda is None and (strategy == 'all' or strategy == 'historical'):
             # Try historical validation
@@ -370,19 +373,27 @@ class EnsembleParser(BaseParser):
                     tie_break_method = "first_available"
                     break
         
-        # Combine other fields (take first non-None value)
+        # Combine other fields (prefer LLM/Vision over NER for quality)
+        best_location = None
+        for name, result in results:
+            if result.opportunity.hq_location and name in ['LLM', 'Vision']:
+                best_location = result.opportunity.hq_location
+                break
+        if not best_location:
+            best_location = next((o.hq_location for o in opportunities if o.hq_location), None)
+        
         combined = InvestmentOpportunity(
             source_domain=next((o.source_domain for o in opportunities if o.source_domain), None),
             recipient=next((o.recipient for o in opportunities if o.recipient), None),
-            hq_location=next((o.hq_location for o in opportunities if o.hq_location), None),
+            hq_location=best_location,
             ebitda_millions=final_ebitda,
             date=next((o.date for o in opportunities if o.date), None),
             company_name=company_names[0] if company_names else None,
             sector=next((o.sector for o in opportunities if o.sector), None),
-            raw_ebitda_text=f"[{tie_break_method}] Combined from {len(results)} parsers",
+            raw_ebitda_text=f"[{tie_break_method}]",
         )
         
-        self.logger.info(f"Combined EBITDA using: {tie_break_method}")
+        self.logger.info(f"Selected EBITDA: ${final_ebitda}M using: {tie_break_method}")
         
         return combined
     
