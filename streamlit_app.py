@@ -357,11 +357,15 @@ def main():
     # Page selection
     page = st.sidebar.radio(
         "Navigation",
-        ["Parser Comparison", "Side-by-Side Viewer", "Batch Processing"]
+        ["Email Analyzer", "Parser Comparison", "Side-by-Side Viewer", "Batch Processing"]
     )
     
     # Display selected page
-    if page == "Parser Comparison":
+    if page == "Email Analyzer":
+        # Import and run email analyzer
+        from streamlit_pages.email_analyzer import main as email_analyzer_main
+        email_analyzer_main()
+    elif page == "Parser Comparison":
         page_comparison()
     elif page == "Side-by-Side Viewer":
         page_side_by_side()
@@ -382,4 +386,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
