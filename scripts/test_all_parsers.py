@@ -10,6 +10,7 @@ from email_parser.ner_body_parser import NERBodyParser
 from email_parser.llm_body_parser import LLMBodyParser
 from email_parser.ocr_attachment_parser import OCRAttachmentParser
 from email_parser.layout_attachment_parser import LayoutLLMParser
+from email_parser.ensemble_parser import EnsembleParser
 
 # Test on one email with all parsers
 TEST_EMAIL = "FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg"
@@ -39,9 +40,16 @@ def main():
         'LLM Body': LLMBodyParser(),
         'OCR + LLM': OCRAttachmentParser(),
         'Layout Vision': LayoutLLMParser(),
+        'Ensemble (Confidence)': EnsembleParser(
+            use_llm=True,
+            use_ner=True,
+            use_vision=True,
+            use_ocr=False,
+            results_csv_path=WORKSPACE / "results.csv"
+        ),
     }
     
-    print(f"\n✓ All 4 parsers initialized\n")
+    print(f"\n✓ All 5 parsers initialized (including Ensemble)\n")
     
     # Run each parser
     results = {}
@@ -66,7 +74,7 @@ def main():
     for name, result in results.items():
         if result:
             opp = result.opportunity
-            ebitda = f"${opp.ebitda_millions}M" if opp.ebitda_millions else "Not found"
+            ebitda = f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "Not found"
             company = (opp.company_name or "Not found")[:24]
             location = (opp.hq_location or "Not found")[:19]
             time = f"{result.processing_time_seconds:.2f}"
@@ -85,7 +93,7 @@ def main():
             opp = result.opportunity
             print(f"\n🔹 {name}")
             print("-"*100)
-            print(f"  EBITDA:           ${opp.ebitda_millions}M" if opp.ebitda_millions else "  EBITDA:           Not found")
+            print(f"  EBITDA:           ${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "  EBITDA:           Not found")
             print(f"  Company:          {opp.company_name or 'Not found'}")
             print(f"  HQ Location:      {opp.hq_location or 'Not found'}")
             print(f"  Sector:           {opp.sector or 'Not found'}")
