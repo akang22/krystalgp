@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from email_parser.ner_body_parser import NERBodyParser
 from email_parser.llm_body_parser import LLMBodyParser
 from email_parser.ocr_attachment_parser import OCRAttachmentParser
+from email_parser.ocr_ner_parser import OCRNERParser
 from email_parser.layout_attachment_parser import LayoutLLMParser
 from email_parser.ensemble_parser import EnsembleParser
 
@@ -39,6 +40,7 @@ def main():
         'NER Body': NERBodyParser(),
         'LLM Body': LLMBodyParser(),
         'OCR + LLM': OCRAttachmentParser(),
+        'OCR + NER': OCRNERParser(),
         'Layout Vision': LayoutLLMParser(),
         'Ensemble (Confidence)': EnsembleParser(
             use_llm=True,
@@ -49,7 +51,7 @@ def main():
         ),
     }
     
-    print(f"\n✓ All 5 parsers initialized (including Ensemble)\n")
+    print(f"\n✓ All 6 parsers initialized (including Ensemble)\n")
     
     # Run each parser
     results = {}

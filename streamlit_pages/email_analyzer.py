@@ -13,6 +13,7 @@ from datetime import datetime
 from email_parser.ner_body_parser import NERBodyParser
 from email_parser.llm_body_parser import LLMBodyParser
 from email_parser.ocr_attachment_parser import OCRAttachmentParser
+from email_parser.ocr_ner_parser import OCRNERParser
 from email_parser.layout_attachment_parser import LayoutLLMParser
 from email_parser.ensemble_parser import EnsembleParser
 
@@ -40,7 +41,12 @@ def get_parsers():
     try:
         parsers['OCR + LLM'] = OCRAttachmentParser()
     except Exception as e:
-        st.warning("OCR parser not available (set OPENAI_API_KEY)")
+        st.warning("OCR + LLM parser not available (set OPENAI_API_KEY)")
+    
+    try:
+        parsers['OCR + NER'] = OCRNERParser()
+    except Exception as e:
+        st.warning(f"OCR + NER parser not available: {e}")
     
     try:
         parsers['Layout Vision'] = LayoutLLMParser()
@@ -173,6 +179,7 @@ def display_confidence_calculation(results):
         'NER Body': 0.7,
         'LLM Body': 1.0,
         'OCR + LLM': 0.5,
+        'OCR + NER': 0.6,
         'Layout Vision': 0.9,
     }
     

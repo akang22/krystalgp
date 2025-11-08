@@ -169,12 +169,27 @@ class BaseParser(ABC):
             msg = extract_msg.Message(msg_path)
             
             # Extract basic email data
+            # Handle both string and bytes for body content
+            body_plain = msg.body
+            if isinstance(body_plain, bytes):
+                try:
+                    body_plain = body_plain.decode('utf-8', errors='ignore')
+                except Exception:
+                    body_plain = str(body_plain)
+            
+            body_html = getattr(msg, 'htmlBody', None)
+            if isinstance(body_html, bytes):
+                try:
+                    body_html = body_html.decode('utf-8', errors='ignore')
+                except Exception:
+                    body_html = str(body_html)
+            
             email_data = EmailData(
                 sender=msg.sender,
                 recipients=self._extract_recipients(msg),
                 subject=msg.subject,
-                body_plain=msg.body,
-                body_html=getattr(msg, 'htmlBody', None),
+                body_plain=body_plain,
+                body_html=body_html,
                 date=msg.date,
             )
             
@@ -307,4 +322,5 @@ class BaseParser(ABC):
                 processing_time_seconds=processing_time,
                 errors=errors,
             )
+
 
