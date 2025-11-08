@@ -153,8 +153,10 @@ def display_parser_results(results):
 
 
 def display_confidence_calculation(results):
-    """Display detailed confidence-weighted calculation."""
-    st.subheader("🧮 Confidence-Weighted Calculation")
+    """Display ensemble selection logic (NOT averaging)."""
+    st.subheader("🎯 Ensemble Selection Logic")
+    
+    st.info("**Note:** The ensemble SELECTS the best value, it does NOT average them!")
     
     # Filter parsers with valid EBITDA
     valid_results = []
@@ -163,7 +165,7 @@ def display_confidence_calculation(results):
             valid_results.append((parser_name, result))
     
     if not valid_results:
-        st.warning("No valid EBITDA values to calculate ensemble")
+        st.warning("No valid EBITDA values found")
         return
     
     # Define weights
@@ -215,33 +217,50 @@ def display_confidence_calculation(results):
     # Display calculation table
     st.dataframe(pd.DataFrame(calc_data), use_container_width=True, hide_index=True)
     
-    # Show final calculation
-    if total_weight > 0:
-        final_ebitda = total_weighted / total_weight
+    # Show selection logic
+    st.markdown("### 🎯 Selection Logic")
+    
+    # Check for fuzzy consensus
+    ebitda_values = [result.opportunity.ebitda_millions for _, result in valid_results]
+    
+    # Count occurrences (for fuzzy matching)
+    from collections import Counter
+    value_counts = Counter(ebitda_values)
+    most_common = value_counts.most_common(1)[0] if value_counts else (None, 0)
+    
+    if most_common[1] >= 2:
+        st.success(f"""
+        ✅ **Fuzzy Consensus Found!**
         
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Weighted Sum", f"{total_weighted:.3f}")
-        with col2:
-            st.metric("Total Weight", f"{total_weight:.3f}")
-        with col3:
-            st.metric("Final EBITDA", f"${final_ebitda:.2f}M")
+        **${most_common[0]:.2f}M** appears {most_common[1]} times (majority)
         
-        # Formula
-        with st.expander("📐 See Formula"):
-            st.latex(r"\text{Weighted Average} = \frac{\sum (\text{EBITDA} \times \text{Weight})}{\sum \text{Weight}}")
-            st.write(f"= {total_weighted:.3f} ÷ {total_weight:.3f}")
-            st.write(f"= **${final_ebitda:.2f}M**")
-        
-        # Comparison
-        simple_avg = sum(result.opportunity.ebitda_millions for _, result in valid_results) / len(valid_results)
-        
-        st.info(f"""
-        **Comparison:**
-        - Simple Average: ${simple_avg:.2f}M
-        - Confidence-Weighted: ${final_ebitda:.2f}M
-        - Difference: ${abs(final_ebitda - simple_avg):.2f}M ({abs(final_ebitda - simple_avg) / simple_avg * 100:.1f}%)
+        → **SELECTED: ${most_common[0]:.2f}M**
         """)
+    else:
+        # Find highest confidence
+        best_parser = max(valid_results, key=lambda x: calc_data[valid_results.index(x)]['Final Weight'])
+        best_ebitda = best_parser[1].opportunity.ebitda_millions
+        best_name = best_parser[0]
+        
+        st.warning(f"""
+        ⚠️ **No Consensus - Using Confidence Selection**
+        
+        Highest confidence: **{best_name}**
+        
+        → **SELECTED: ${best_ebitda:.2f}M**
+        """)
+    
+    # Show what ensemble returned
+    ensemble_result = results.get('Ensemble (Confidence)')
+    if ensemble_result and ensemble_result.opportunity.ebitda_millions:
+        final_value = ensemble_result.opportunity.ebitda_millions
+        method = ensemble_result.opportunity.raw_ebitda_text or "Unknown"
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("🎯 Ensemble Selected", f"${final_value:.2f}M")
+        with col2:
+            st.metric("Selection Method", method.replace('[', '').replace(']', ''))
 
 
 def display_detailed_results(results):
