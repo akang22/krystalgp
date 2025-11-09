@@ -300,7 +300,47 @@ def display_detailed_results(results):
                 st.write("**Processing Time:**", f"{result.processing_time_seconds:.2f}s")
                 st.write("**Extraction Source:**", result.extraction_source)
             
-            if opp.raw_ebitda_text:
+            # Show multiple options with confidence scores
+            if opp.ebitda_options:
+                st.markdown("**💡 EBITDA Options (All Candidates):**")
+                ebitda_df = []
+                for opt in sorted(opp.ebitda_options, key=lambda x: x.confidence, reverse=True):
+                    ebitda_df.append({
+                        "Value": f"${opt.value}M",
+                        "Confidence": f"{opt.confidence:.0%}",
+                        "Source": opt.source,
+                        "Raw Text": opt.raw_text or "N/A"
+                    })
+                if ebitda_df:
+                    st.dataframe(ebitda_df, use_container_width=True, hide_index=True)
+            
+            if opp.location_options:
+                st.markdown("**💡 Location Options (All Candidates):**")
+                loc_df = []
+                for opt in sorted(opp.location_options, key=lambda x: x.confidence, reverse=True):
+                    loc_df.append({
+                        "Value": opt.value,
+                        "Confidence": f"{opt.confidence:.0%}",
+                        "Source": opt.source,
+                        "Raw Text": opt.raw_text or "N/A"
+                    })
+                if loc_df:
+                    st.dataframe(loc_df, use_container_width=True, hide_index=True)
+            
+            if opp.company_options:
+                st.markdown("**💡 Company Options (All Candidates):**")
+                comp_df = []
+                for opt in sorted(opp.company_options, key=lambda x: x.confidence, reverse=True):
+                    comp_df.append({
+                        "Value": opt.value,
+                        "Confidence": f"{opt.confidence:.0%}",
+                        "Source": opt.source,
+                        "Raw Text": opt.raw_text or "N/A"
+                    })
+                if comp_df:
+                    st.dataframe(comp_df, use_container_width=True, hide_index=True)
+            
+            if opp.raw_ebitda_text and not opp.ebitda_options:
                 st.write("**Raw EBITDA Text:**")
                 st.code(opp.raw_ebitda_text)
 
