@@ -126,3 +126,4 @@ def my_function() -> str:
 - Document all configuration options
 - Use sensible defaults
 
+
