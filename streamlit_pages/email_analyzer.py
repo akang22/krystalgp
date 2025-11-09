@@ -6,9 +6,13 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+import io
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from pdf2image import convert_from_bytes
+from PIL import Image
+from docx import Document
 
 from email_parser.ner_body_parser import NERBodyParser
 from email_parser.llm_body_parser import LLMBodyParser
@@ -330,6 +334,62 @@ def display_image_attachment(attachment):
         st.error(f"Failed to display image: {e}")
 
 
+def display_docx_attachment(attachment):
+    """Display Word document as text."""
+    try:
+        doc = Document(io.BytesIO(attachment.content))
+        st.markdown(f"**{attachment.filename}** ({attachment.size_bytes / 1024:.1f} KB)")
+        
+        # Extract all text
+        full_text = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                full_text.append(para.text)
+        
+        # Also extract from tables
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = ' | '.join(cell.text for cell in row.cells)
+                if row_text.strip():
+                    full_text.append(row_text)
+        
+        text_content = '\n\n'.join(full_text)
+        
+        if text_content:
+            st.text_area(
+                "Document Content",
+                text_content,
+                height=400,
+                label_visibility="collapsed"
+            )
+        else:
+            st.warning("No text content found in document")
+            
+    except Exception as e:
+        st.error(f"Failed to display Word document: {e}")
+
+
+def display_text_attachment(attachment):
+    """Display text-based attachments."""
+    try:
+        # Try to decode as text
+        text_content = attachment.content.decode('utf-8', errors='ignore')
+        
+        st.markdown(f"**{attachment.filename}** ({attachment.size_bytes / 1024:.1f} KB)")
+        st.text_area(
+            "File Content",
+            text_content[:5000],  # First 5000 chars
+            height=300,
+            label_visibility="collapsed"
+        )
+        
+        if len(text_content) > 5000:
+            st.info(f"Showing first 5000 characters of {len(text_content)} total")
+            
+    except Exception as e:
+        st.error(f"Failed to display text file: {e}")
+
+
 def display_attachments_visual(email_data):
     """Display attachments with preview."""
     st.subheader("📎 Attachments")
@@ -347,13 +407,19 @@ def display_attachments_visual(email_data):
         with st.expander(f"📄 {att.filename} ({att.size_bytes / 1024:.1f} KB)"):
             if filename_lower.endswith('.pdf'):
                 display_pdf_attachment(att)
-            elif any(filename_lower.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']):
+            elif any(filename_lower.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff']):
                 display_image_attachment(att)
-            elif filename_lower.endswith('.docx'):
-                st.info("Word document - preview not available")
-                # Could add python-docx preview here
+            elif filename_lower.endswith('.docx') or filename_lower.endswith('.doc'):
+                display_docx_attachment(att)
+            elif any(filename_lower.endswith(ext) for ext in ['.txt', '.csv', '.log', '.md']):
+                display_text_attachment(att)
             else:
-                st.info(f"Type: {att.content_type or 'Unknown'} - Preview not available")
+                # Try to display as text
+                st.info(f"Type: {att.content_type or 'Unknown'}")
+                try:
+                    display_text_attachment(att)
+                except:
+                    st.warning("Preview not available for this file type")
 
 
 def main():
