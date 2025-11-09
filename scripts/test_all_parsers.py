@@ -42,7 +42,7 @@ def main():
         'OCR + LLM': OCRAttachmentParser(),
         'OCR + NER': OCRNERParser(),
         'Layout Vision': LayoutLLMParser(),
-        'Ensemble (Confidence)': EnsembleParser(
+        'Final Results': EnsembleParser(
             use_llm=True,
             use_ner=True,
             use_vision=True,

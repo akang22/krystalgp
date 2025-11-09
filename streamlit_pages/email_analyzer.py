@@ -58,7 +58,7 @@ def get_parsers():
         st.warning("Layout Vision parser not available (set OPENAI_API_KEY)")
     
     try:
-        parsers['Ensemble (Confidence)'] = EnsembleParser(
+        parsers['Final Results'] = EnsembleParser(
             use_llm=True,
             use_ner=True,
             use_vision=True,
@@ -66,7 +66,7 @@ def get_parsers():
             results_csv_path=RESULTS_CSV
         )
     except Exception as e:
-        st.warning(f"Ensemble parser not available: {e}")
+        st.warning(f"Final Results parser not available: {e}")
     
     return parsers
 
@@ -524,11 +524,6 @@ def main():
     
     # Display results
     display_parser_results(results)
-    
-    st.divider()
-    
-    # Confidence calculation
-    display_confidence_calculation(results)
     
     st.divider()
     
