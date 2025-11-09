@@ -301,11 +301,63 @@ def display_detailed_results(results):
                 st.code(opp.raw_ebitda_text)
 
 
+def display_pdf_attachment(attachment):
+    """Display PDF attachment."""
+    try:
+        # Convert PDF to images
+        images = convert_from_bytes(attachment.content, dpi=150)
+        
+        st.markdown(f"**{attachment.filename}** ({attachment.size_bytes / 1024:.1f} KB)")
+        
+        # Display first 3 pages
+        for i, img in enumerate(images[:3]):
+            st.image(img, caption=f"Page {i+1}", use_column_width=True)
+            
+        if len(images) > 3:
+            st.info(f"Showing first 3 pages of {len(images)} total pages")
+            
+    except Exception as e:
+        st.error(f"Failed to display PDF: {e}")
+
+
+def display_image_attachment(attachment):
+    """Display image attachment."""
+    try:
+        image = Image.open(io.BytesIO(attachment.content))
+        st.markdown(f"**{attachment.filename}** ({attachment.size_bytes / 1024:.1f} KB)")
+        st.image(image, use_column_width=True)
+    except Exception as e:
+        st.error(f"Failed to display image: {e}")
+
+
+def display_attachments_visual(email_data):
+    """Display attachments with preview."""
+    st.subheader("📎 Attachments")
+    
+    if not email_data.attachments:
+        st.info("No attachments found")
+        return
+    
+    st.write(f"**Total:** {len(email_data.attachments)} file(s)")
+    
+    # Display each attachment
+    for att in email_data.attachments:
+        filename_lower = att.filename.lower()
+        
+        with st.expander(f"📄 {att.filename} ({att.size_bytes / 1024:.1f} KB)"):
+            if filename_lower.endswith('.pdf'):
+                display_pdf_attachment(att)
+            elif any(filename_lower.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']):
+                display_image_attachment(att)
+            elif filename_lower.endswith('.docx'):
+                st.info("Word document - preview not available")
+                # Could add python-docx preview here
+            else:
+                st.info(f"Type: {att.content_type or 'Unknown'} - Preview not available")
+
+
 def main():
     """Main Streamlit app."""
-    st.title("📧 Email Parser Analyzer")
-    st.markdown("Analyze individual emails with all parser methods and see the confidence-weighted ensemble result.")
-    
     # Get list of emails
     email_files = sorted([f.name for f in SAMPLE_EMAILS_DIR.glob("*.msg")])
     
@@ -313,18 +365,19 @@ def main():
         st.error(f"No .msg files found in {SAMPLE_EMAILS_DIR}")
         return
     
-    # Email selector
-    st.sidebar.header("Select Email")
-    selected_email = st.sidebar.selectbox(
-        "Choose an email to analyze:",
+    # Email selector in main page
+    st.subheader("📨 Select Email to Analyze")
+    selected_email = st.selectbox(
+        "Choose an email:",
         email_files,
         index=email_files.index("FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg") 
-            if "FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg" in email_files else 0
+            if "FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg" in email_files else 0,
+        label_visibility="collapsed"
     )
     
     email_path = SAMPLE_EMAILS_DIR / selected_email
     
-    st.header(f"📨 {selected_email}")
+    st.divider()
     
     # Initialize parsers
     parsers = get_parsers()
@@ -332,8 +385,6 @@ def main():
     if not parsers:
         st.error("No parsers available. Check your configuration.")
         return
-    
-    st.sidebar.write(f"**Available Parsers:** {len(parsers)}")
     
     # Parse email
     with st.spinner("Parsing email..."):
@@ -350,8 +401,8 @@ def main():
         
         st.divider()
         
-        # Attachments
-        display_attachments(email_data)
+        # Attachments with visual display
+        display_attachments_visual(email_data)
         
         st.divider()
         

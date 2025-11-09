@@ -1,9 +1,6 @@
-"""Streamlit dashboard for email parser comparison.
+"""Streamlit Email Analyzer for investment opportunity parsing.
 
-This app provides:
-- Parser approach comparison with accuracy metrics
-- Side-by-side email viewer with bounding boxes
-- Batch processing capabilities
+Interactive tool to analyze emails with all parser approaches.
 """
 
 import sys
@@ -12,13 +9,19 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+import io
+import base64
 import pandas as pd
 import streamlit as st
+from pdf2image import convert_from_bytes
+from PIL import Image
 
 from email_parser.llm_body_parser import LLMBodyParser
 from email_parser.ner_body_parser import NERBodyParser
 from email_parser.ocr_attachment_parser import OCRAttachmentParser
+from email_parser.ocr_ner_parser import OCRNERParser
 from email_parser.layout_attachment_parser import LayoutLLMParser
+from email_parser.ensemble_parser import EnsembleParser
 from email_parser.utils import fuzzy_match_ebitda
 
 
@@ -350,38 +353,13 @@ def page_batch_processing():
 
 
 def main():
-    """Main app entry point."""
-    st.sidebar.title("📧 Email Parser")
-    st.sidebar.markdown("Compare different parsing approaches for investment opportunity emails.")
+    """Main app - Email Analyzer only."""
+    st.title("📧 Email Parser - Investment Opportunity Analyzer")
+    st.markdown("Analyze investment opportunity emails with multiple parsing approaches.")
     
-    # Page selection
-    page = st.sidebar.radio(
-        "Navigation",
-        ["Email Analyzer", "Parser Comparison", "Side-by-Side Viewer", "Batch Processing"]
-    )
-    
-    # Display selected page
-    if page == "Email Analyzer":
-        # Import and run email analyzer
-        from streamlit_pages.email_analyzer import main as email_analyzer_main
-        email_analyzer_main()
-    elif page == "Parser Comparison":
-        page_comparison()
-    elif page == "Side-by-Side Viewer":
-        page_side_by_side()
-    elif page == "Batch Processing":
-        page_batch_processing()
-    
-    # Sidebar info
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### About")
-    st.sidebar.markdown("""
-    This dashboard compares multiple email parsing approaches:
-    - **LLM Body**: OpenAI GPT-4 for email body
-    - **NER Body**: spaCy NER + regex for email body
-    - **OCR + LLM**: OCR text extraction + LLM
-    - **Layout LLM**: GPT-4-Vision for visual understanding
-    """)
+    # Import and run email analyzer directly
+    from streamlit_pages.email_analyzer import main as email_analyzer_main
+    email_analyzer_main()
 
 
 if __name__ == "__main__":
