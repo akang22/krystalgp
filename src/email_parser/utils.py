@@ -7,32 +7,39 @@ and data normalization.
 import re
 from typing import List, Optional, Tuple
 
-# Common EBITDA patterns
+# Common EBITDA patterns (expanded for OCR and various formats)
 EBITDA_PATTERNS = [
+    # "C$X.XM" or "$X.XM" with EBITDA nearby
+    r'C?\$\s*(\d+\.?\d*)\s*M[a-z]*\s*(?:Adjusted\s+)?(?:Portfolio\s+)?EBITDA',
+    # "EBITDA C$X.XM" or "EBITDA $X.XM"
+    r'(?:Adjusted\s+)?(?:Portfolio\s+)?EBITDA[:\s]+C?\$\s*(\d+\.?\d*)\s*M',
     # "$X.XM EBITDA" or "$XM EBITDA"
-    r'\$\s*(\d+\.?\d*)\s*M\s+EBITDA',
+    r'C?\$\s*(\d+\.?\d*)\s*M\s+EBITDA',
     # "EBITDA: $X.XM" or "EBITDA $XM"
-    r'EBITDA[:\s]+\$\s*(\d+\.?\d*)\s*M',
+    r'EBITDA[:\s]+C?\$\s*(\d+\.?\d*)\s*M',
     # "LTM EBITDA $X.XM"
-    r'LTM\s+EBITDA[:\s]+\$\s*(\d+\.?\d*)\s*M',
+    r'LTM\s+EBITDA[:\s]+C?\$\s*(\d+\.?\d*)\s*M',
     # "EBITDA of $X.XM"
-    r'EBITDA\s+of\s+\$\s*(\d+\.?\d*)\s*M',
+    r'EBITDA\s+of\s+C?\$\s*(\d+\.?\d*)\s*M',
     # "$Xmm EBITDA" or "$X million EBITDA"
-    r'\$\s*(\d+\.?\d*)\s*(?:mm|million)\s+EBITDA',
+    r'C?\$\s*(\d+\.?\d*)\s*(?:mm|million)\s+EBITDA',
     # "($Xm)" format
-    r'\(\$(\d+\.?\d*)[Mm]\)',
+    r'\(C?\$(\d+\.?\d*)[Mm]\)',
     # Negative EBITDA
-    r'-\$\s*(\d+\.?\d*)\s*M\s+EBITDA',
+    r'-C?\$\s*(\d+\.?\d*)\s*M\s+EBITDA',
+    # Just "X.X M" or "X.X million" near EBITDA (for OCR artifacts)
+    r'EBITDA[:\s]+C?\$?\s*(\d+\.?\d*)\s*(?:M|million)',
 ]
 
 
-def extract_ebitda(text: str) -> Optional[Tuple[float, str]]:
+def extract_ebitda(text: str, allow_context_search: bool = True) -> Optional[Tuple[float, str]]:
     """Extract EBITDA value from text.
     
     Searches for common EBITDA patterns and returns the first match.
     
     Args:
         text: Text to search
+        allow_context_search: If True, search for C$X.XM in tables near "EBITDA" headers
         
     Returns:
         Tuple of (ebitda_value, raw_text) or None if not found
@@ -57,6 +64,50 @@ def extract_ebitda(text: str) -> Optional[Tuple[float, str]]:
                 return (value, match.group(0))
             except (ValueError, IndexError):
                 continue
+    
+    # If no direct match and context search enabled, look for table formats
+    if allow_context_search and 'EBITDA' in text.upper():
+        # Look for C$X.XM or $X.XM format in proximity to EBITDA
+        # Common in tables where header says "EBITDA" and values are below
+        lines = text.split('\n')
+        
+        # Strategy 1: Look for "Adjusted" EBITDA specifically (most reliable)
+        for i, line in enumerate(lines):
+            if 'ADJUSTED' in line.upper() and 'EBITDA' in line.upper():
+                # Check next 3 lines for dollar amounts
+                for j in range(i+1, min(i+4, len(lines))):
+                    next_line = lines[j]
+                    money_match = re.search(r'C?\$\s*(\d+\.?\d*)\s*M\b', next_line, re.IGNORECASE)
+                    if money_match:
+                        try:
+                            value = float(money_match.group(1))
+                            if 0.1 <= value <= 100:
+                                return (value, f"C${value}M [Adjusted EBITDA from table]")
+                        except ValueError:
+                            continue
+        
+        # Strategy 2: Find all C$X.XM values near EBITDA and pick largest
+        # (adjusted/portfolio EBITDA is usually the main metric)
+        found_values = []
+        for i, line in enumerate(lines):
+            if 'EBITDA' in line.upper():
+                # Check next 5 lines
+                for j in range(i+1, min(i+6, len(lines))):
+                    next_line = lines[j]
+                    # Find all money values
+                    money_matches = re.findall(r'C?\$\s*(\d+\.?\d*)\s*M\b', next_line, re.IGNORECASE)
+                    for match_str in money_matches:
+                        try:
+                            value = float(match_str)
+                            if 0.1 <= value <= 100:
+                                found_values.append(value)
+                        except ValueError:
+                            continue
+        
+        # Return largest value (usually the total/consolidated EBITDA)
+        if found_values:
+            max_value = max(found_values)
+            return (max_value, f"C${max_value}M [from table near EBITDA]")
     
     return None
 
@@ -219,4 +270,5 @@ def fuzzy_match_ebitda(predicted: Optional[float], actual: Optional[float],
         return False
     
     return abs(predicted - actual) <= tolerance
+
 
