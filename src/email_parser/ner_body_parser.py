@@ -11,7 +11,7 @@ from typing import List, Optional, Set
 import spacy
 from spacy.language import Language
 
-from email_parser.base import BaseParser, EmailData, InvestmentOpportunity, ParserResult
+from email_parser.base import BaseParser, EmailData, InvestmentOpportunity, ParserResult, FieldOption
 from email_parser.utils import (
     extract_canadian_provinces,
     extract_ebitda,
@@ -216,16 +216,81 @@ class NERBodyParser(BaseParser):
         # Normalize text
         body_text = normalize_text(body_text)
         
-        # Extract EBITDA
+        # Extract EBITDA (primary)
         ebitda_result = extract_ebitda(body_text)
         ebitda_millions = ebitda_result[0] if ebitda_result else None
         raw_ebitda_text = ebitda_result[1] if ebitda_result else None
         
-        # Extract HQ location
+        # Collect multiple EBITDA options (find all regex matches)
+        ebitda_options = []
+        if ebitda_result:
+            ebitda_options.append(FieldOption(
+                value=ebitda_result[0],
+                confidence=0.9,
+                source="email body (regex)",
+                raw_text=ebitda_result[1]
+            ))
+        
+        # Extract HQ location (primary)
         hq_location = self._determine_hq_location(body_text, subject)
         
-        # Extract company name
+        # Collect multiple location options
+        location_options = []
+        pattern_location = extract_location(body_text)
+        ner_locations = self._extract_locations_ner(body_text)
+        provinces = extract_canadian_provinces(body_text)
+        
+        if pattern_location:
+            location_options.append(FieldOption(
+                value=pattern_location,
+                confidence=0.9,
+                source="email body (pattern match)",
+                raw_text=None
+            ))
+        
+        for loc in ner_locations[:3]:  # Top 3 NER matches
+            if loc not in [opt.value for opt in location_options]:
+                location_options.append(FieldOption(
+                    value=loc,
+                    confidence=0.7,
+                    source="email body (NER)",
+                    raw_text=None
+                ))
+        
+        for prov in provinces[:2]:  # Top 2 provinces
+            if prov not in [opt.value for opt in location_options]:
+                location_options.append(FieldOption(
+                    value=prov,
+                    confidence=0.5,
+                    source="email body (province mention)",
+                    raw_text=None
+                ))
+        
+        # Extract company name (primary)
         company_name = self._extract_company_name(body_text, subject)
+        
+        # Collect multiple company options
+        company_options = []
+        if company_name:
+            company_options.append(FieldOption(
+                value=company_name,
+                confidence=0.9,
+                source="subject line or body",
+                raw_text=None
+            ))
+        
+        # Add NER organization entities
+        doc = self.nlp(body_text[:2000])  # Limit to avoid slow processing
+        for ent in doc.ents:
+            if ent.label_ == "ORG" and ent.text not in [opt.value for opt in company_options]:
+                company_options.append(FieldOption(
+                    value=ent.text,
+                    confidence=0.6,
+                    source="email body (NER ORG)",
+                    raw_text=None
+                ))
+                if len(company_options) >= 3:  # Limit to top 3
+                    break
         
         # Extract sector
         sector = self._extract_sector(body_text)
@@ -239,6 +304,9 @@ class NERBodyParser(BaseParser):
             company_name=company_name,
             sector=sector,
             raw_ebitda_text=raw_ebitda_text,
+            ebitda_options=ebitda_options,
+            location_options=location_options,
+            company_options=company_options,
         )
         
         self.logger.info(
@@ -262,4 +330,5 @@ class NERBodyParser(BaseParser):
         result = super().parse(msg_path)
         result.extraction_source = "body"
         return result
+
 
