@@ -483,6 +483,8 @@ def main():
         progress_bar = st.progress(0)
         status_text = st.empty()
         
+        error_log = []
+        
         for idx, (parser_name, parser) in enumerate(parsers.items()):
             status_text.text(f"Running {parser_name}...")
             
@@ -493,15 +495,28 @@ def main():
                 # Debug: show what was extracted
                 if result and result.opportunity:
                     opp = result.opportunity
-                    status_text.text(f"✓ {parser_name}: ${opp.ebitda_millions}M" if opp.ebitda_millions else f"✓ {parser_name}: No EBITDA")
+                    ebitda_str = f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "None"
+                    status_text.text(f"✓ {parser_name}: EBITDA={ebitda_str}, Company={opp.company_name or 'None'}")
+                    
+                    # Log errors if any
+                    if result.errors:
+                        error_log.append(f"{parser_name}: {', '.join(result.errors)}")
                 
             except Exception as e:
-                st.error(f"❌ {parser_name} failed: {e}")
-                import traceback
-                st.code(traceback.format_exc())
+                error_msg = f"{parser_name} failed: {str(e)}"
+                error_log.append(error_msg)
+                st.error(f"❌ {error_msg}")
                 results[parser_name] = None
             
             progress_bar.progress((idx + 1) / len(parsers))
+        
+        status_text.text("✅ Parsing complete!")
+        
+        # Show errors if any
+        if error_log:
+            with st.expander("⚠️ Errors/Warnings"):
+                for err in error_log:
+                    st.warning(err)
         
         status_text.text("✅ Parsing complete!")
         progress_bar.empty()
