@@ -489,8 +489,16 @@ def main():
             try:
                 result = parser.parse(email_path)
                 results[parser_name] = result
+                
+                # Debug: show what was extracted
+                if result and result.opportunity:
+                    opp = result.opportunity
+                    status_text.text(f"✓ {parser_name}: ${opp.ebitda_millions}M" if opp.ebitda_millions else f"✓ {parser_name}: No EBITDA")
+                
             except Exception as e:
-                st.warning(f"{parser_name} failed: {e}")
+                st.error(f"❌ {parser_name} failed: {e}")
+                import traceback
+                st.code(traceback.format_exc())
                 results[parser_name] = None
             
             progress_bar.progress((idx + 1) / len(parsers))
