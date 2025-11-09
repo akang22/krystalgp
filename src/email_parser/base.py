@@ -37,6 +37,21 @@ class BoundingBox(BaseModel):
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
 
 
+class FieldOption(BaseModel):
+    """A candidate value for a field with confidence score.
+    
+    Attributes:
+        value: The extracted value
+        confidence: Confidence score (0.0 to 1.0)
+        source: Where this came from (e.g., "email body line 5", "PDF page 1")
+        raw_text: Raw text that led to this extraction
+    """
+    value: Any
+    confidence: float = Field(ge=0.0, le=1.0)
+    source: str
+    raw_text: Optional[str] = None
+
+
 class InvestmentOpportunity(BaseModel):
     """Structured data for an investment opportunity.
     
@@ -50,6 +65,11 @@ class InvestmentOpportunity(BaseModel):
         company_name: Optional company or project name
         sector: Optional industry sector
         raw_ebitda_text: Raw text containing EBITDA mention
+        
+        # Multiple options with confidence scores
+        ebitda_options: List of candidate EBITDA values with confidence
+        location_options: List of candidate locations with confidence
+        company_options: List of candidate company names with confidence
     """
     source_domain: Optional[str] = None
     recipient: Optional[str] = None
@@ -62,6 +82,11 @@ class InvestmentOpportunity(BaseModel):
     company_name: Optional[str] = None
     sector: Optional[str] = None
     raw_ebitda_text: Optional[str] = None
+    
+    # Multiple options with confidence scores
+    ebitda_options: List[FieldOption] = Field(default_factory=list)
+    location_options: List[FieldOption] = Field(default_factory=list)
+    company_options: List[FieldOption] = Field(default_factory=list)
     
     @field_validator('ebitda_millions')
     @classmethod

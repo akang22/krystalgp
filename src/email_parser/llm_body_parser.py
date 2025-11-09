@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import ValidationError
 
-from email_parser.base import BaseParser, EmailData, InvestmentOpportunity, ParserResult
+from email_parser.base import BaseParser, EmailData, InvestmentOpportunity, ParserResult, FieldOption
 
 # Load environment variables from .env file
 load_dotenv()
@@ -72,24 +72,35 @@ class LLMBodyParser(BaseParser):
         
         prompt = f"""You are an expert at extracting structured information from investment opportunity emails.
 
-Extract the following fields from the email below. Return ONLY a valid JSON object with these exact fields:
+Extract the following fields from the email below. For each field, provide ALL possible values you find with confidence scores.
+
+Return ONLY a valid JSON object with these exact fields:
 
 {{
-  "hq_location": "string or null - Headquarters location of the company/target (city, province/state)",
-  "ebitda_millions": number or null - EBITDA in millions of dollars (e.g., 5.2 for $5.2M),
-  "company_name": "string or null - Company or project name",
-  "sector": "string or null - Industry sector or type of business",
-  "raw_ebitda_text": "string or null - Exact text mentioning EBITDA"
+  "ebitda_options": [
+    {{"value": 5.2, "confidence": 0.95, "source": "email body", "raw_text": "LTM EBITDA of $5.2M"}},
+    {{"value": 4.5, "confidence": 0.7, "source": "subject line", "raw_text": "~$4.5M EBITDA"}}
+  ],
+  "location_options": [
+    {{"value": "Vancouver, BC", "confidence": 0.9, "source": "email body", "raw_text": "based in Vancouver"}},
+    {{"value": "British Columbia", "confidence": 0.6, "source": "general mention", "raw_text": "BC operations"}}
+  ],
+  "company_options": [
+    {{"value": "Project Gravy", "confidence": 0.95, "source": "subject line", "raw_text": "Project Gravy -"}}
+  ],
+  "sector": "string or null - Industry sector or type of business"
 }}
 
 Instructions:
-- For EBITDA, look for patterns like "$5.2M EBITDA", "LTM EBITDA: $10M", "EBITDA of $8.5M"
+- For EBITDA: Find ALL mentions, rank by confidence (clear statement = 0.9+, implied = 0.5-0.8)
+- For locations: Include all candidates (explicit HQ = 0.9+, general mention = 0.5-0.8)
+- For company: Include variations (official name = 0.9+, project codename = 0.7+)
 - Convert EBITDA to millions (e.g., "$5.2M" → 5.2, "$10M" → 10.0)
-- For negative EBITDA, use negative numbers (e.g., -$3.7M → -3.7)
-- For location, look for "based in X", "located in X", "X-based", or headquarters mentions
-- For company name, check subject line and body for project names or company names
-- Extract sector/industry if mentioned
-- Use null for fields that cannot be determined
+- Set confidence based on clarity: explicit statement (0.9+), implied (0.6-0.8), uncertain (0.3-0.5)
+- Include source: "email body", "subject line", "signature", etc.
+- Include raw_text: the exact text snippet
+- Extract sector (single value, not multiple)
+- Return empty arrays if no options found
 - Ensure proper JSON formatting (use double quotes, no trailing commas)
 
 EMAIL SUBJECT: {email_data.subject or "N/A"}
@@ -163,16 +174,44 @@ Return only the JSON object, no additional text or explanation."""
             # Parse JSON response
             extracted_data = self._parse_llm_response(response_text)
             
+            # Parse options
+            ebitda_options = []
+            location_options = []
+            company_options = []
+            
+            # Convert ebitda_options
+            for opt in extracted_data.get('ebitda_options', []):
+                if isinstance(opt, dict) and 'value' in opt:
+                    ebitda_options.append(FieldOption(**opt))
+            
+            # Convert location_options
+            for opt in extracted_data.get('location_options', []):
+                if isinstance(opt, dict) and 'value' in opt:
+                    location_options.append(FieldOption(**opt))
+            
+            # Convert company_options  
+            for opt in extracted_data.get('company_options', []):
+                if isinstance(opt, dict) and 'value' in opt:
+                    company_options.append(FieldOption(**opt))
+            
+            # Use highest confidence options as primary values
+            best_ebitda = max(ebitda_options, key=lambda x: x.confidence) if ebitda_options else None
+            best_location = max(location_options, key=lambda x: x.confidence) if location_options else None
+            best_company = max(company_options, key=lambda x: x.confidence) if company_options else None
+            
             # Create InvestmentOpportunity
             opportunity = InvestmentOpportunity(
                 source_domain=source_domain,
                 recipient=recipient,
-                hq_location=extracted_data.get('hq_location'),
-                ebitda_millions=extracted_data.get('ebitda_millions'),
+                hq_location=best_location.value if best_location else None,
+                ebitda_millions=best_ebitda.value if best_ebitda else None,
                 date=email_data.date,
-                company_name=extracted_data.get('company_name'),
+                company_name=best_company.value if best_company else None,
                 sector=extracted_data.get('sector'),
-                raw_ebitda_text=extracted_data.get('raw_ebitda_text'),
+                raw_ebitda_text=best_ebitda.raw_text if best_ebitda else None,
+                ebitda_options=ebitda_options,
+                location_options=location_options,
+                company_options=company_options,
             )
             
             self.logger.info(f"Extracted: EBITDA=${opportunity.ebitda_millions}M, Location={opportunity.hq_location}")
