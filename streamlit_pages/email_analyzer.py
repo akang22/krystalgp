@@ -433,15 +433,42 @@ def main():
     
     # Email selector in main page
     st.subheader("📨 Select Email to Analyze")
-    selected_email = st.selectbox(
-        "Choose an email:",
-        email_files,
-        index=email_files.index("FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg") 
-            if "FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg" in email_files else 0,
-        label_visibility="collapsed"
-    )
     
-    email_path = SAMPLE_EMAILS_DIR / selected_email
+    # Add upload option
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        selected_email = st.selectbox(
+            "Choose an email:",
+            email_files,
+            index=email_files.index("FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg") 
+                if "FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg" in email_files else 0,
+            label_visibility="collapsed"
+        )
+    
+    with col2:
+        uploaded_file = st.file_uploader(
+            "Or upload",
+            type=['msg'],
+            label_visibility="visible",
+            help="Upload a .msg file to analyze"
+        )
+    
+    # Handle uploaded file
+    if uploaded_file is not None:
+        # Save to sample_emails directory
+        save_path = SAMPLE_EMAILS_DIR / uploaded_file.name
+        
+        with open(save_path, 'wb') as f:
+            f.write(uploaded_file.getbuffer())
+        
+        st.success(f"✅ Uploaded and saved: {uploaded_file.name}")
+        st.info("Refresh the page to see it in the dropdown, or continue analyzing below.")
+        
+        email_path = save_path
+        selected_email = uploaded_file.name
+    else:
+        email_path = SAMPLE_EMAILS_DIR / selected_email
     
     st.divider()
     
