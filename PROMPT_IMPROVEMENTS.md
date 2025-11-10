@@ -75,9 +75,11 @@ Email from 2024:
 
 1. `src/email_parser/llm_body_parser.py` - Main body parser
 2. `src/email_parser/ocr_attachment_parser.py` - OCR + LLM parser
+3. `src/email_parser/layout_attachment_parser.py` - Layout Vision parser
 
-Both parsers now use:
+All LLM-based parsers now use:
 - Email date for temporal context
 - BC location prioritization
 - Enhanced EBITDA extraction logic
+- Full email body (no truncation)
 
