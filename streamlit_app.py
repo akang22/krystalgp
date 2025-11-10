@@ -10,11 +10,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 import io
+import os
 import base64
 import pandas as pd
 import streamlit as st
 from pdf2image import convert_from_bytes
 from PIL import Image
+
+# Load secrets from Streamlit secrets.toml into environment
+# This allows parsers to work with st.secrets or .env files
+if hasattr(st, 'secrets'):
+    for key in st.secrets.keys():
+        if key not in os.environ:
+            os.environ[key] = st.secrets[key]
 
 from email_parser.llm_body_parser import LLMBodyParser
 from email_parser.ner_body_parser import NERBodyParser
