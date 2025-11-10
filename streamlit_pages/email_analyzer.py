@@ -18,7 +18,7 @@ from PIL import Image
 
 # Load secrets from Streamlit secrets.toml into environment
 # This allows parsers to work with st.secrets or .env files
-if hasattr(st, 'secrets'):
+if hasattr(st, "secrets"):
     for key in st.secrets.keys():
         if key not in os.environ:
             os.environ[key] = st.secrets[key]
