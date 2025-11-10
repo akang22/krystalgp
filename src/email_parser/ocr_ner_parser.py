@@ -72,8 +72,17 @@ class OCRNERParser(BaseParser):
         try:
             self.nlp = spacy.load(spacy_model)
         except OSError:
-            self.logger.error(f"spaCy model '{spacy_model}' not found")
-            raise
+            self.logger.warning(f"spaCy model '{spacy_model}' not found. Attempting to download...")
+            try:
+                from spacy.cli import download
+                download(spacy_model)
+                self.nlp = spacy.load(spacy_model)
+            except Exception as e:
+                self.logger.error(f"Failed to download spaCy model: {e}")
+                raise RuntimeError(
+                    f"spaCy model '{spacy_model}' not installed. "
+                    f"Please install: python -m spacy download {spacy_model}"
+                )
         
         self.logger.info(f"Initialized OCR+NER parser with spaCy: {spacy_model}")
     

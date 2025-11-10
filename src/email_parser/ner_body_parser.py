@@ -61,8 +61,8 @@ class NERBodyParser(BaseParser):
             return spacy.load(model_name)
         except OSError:
             self.logger.error(f"spaCy model '{model_name}' not found. Installing...")
-            import spacy.cli
-            spacy.cli.download(model_name)
+            from spacy.cli import download
+            download(model_name)
             return spacy.load(model_name)
     
     def _extract_company_name(self, text: str, subject: Optional[str]) -> Optional[str]:
