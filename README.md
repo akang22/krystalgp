@@ -57,7 +57,7 @@ uv sync
 3. **Install spaCy model:**
 
 ```bash
-uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+uv run python -m spacy download en_core_web_sm
 ```
 
 4. **Install Tesseract (for OCR parsers):**
@@ -216,10 +216,10 @@ uv run python scripts/test_all_parsers.py
 
 ### spaCy Model Not Found
 
-Install the spaCy model directly:
+Install the spaCy model:
 
 ```bash
-uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+uv run python -m spacy download en_core_web_sm
 ```
 
 ### OpenAI API Errors
