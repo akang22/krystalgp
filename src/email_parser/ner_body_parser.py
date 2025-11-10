@@ -55,15 +55,16 @@ class NERBodyParser(BaseParser):
             Loaded spaCy Language object
             
         Raises:
-            OSError: If model is not installed
+            RuntimeError: If model is not installed
         """
         try:
             return spacy.load(model_name)
-        except OSError:
-            self.logger.error(f"spaCy model '{model_name}' not found. Installing...")
-            from spacy.cli import download
-            download(model_name)
-            return spacy.load(model_name)
+        except OSError as e:
+            self.logger.error(f"spaCy model '{model_name}' not found: {e}")
+            raise RuntimeError(
+                f"spaCy model '{model_name}' not installed. "
+                f"Run 'uv sync' to install dependencies."
+            )
     
     def _extract_company_name(self, text: str, subject: Optional[str]) -> Optional[str]:
         """Extract company or project name from text.

@@ -50,17 +50,11 @@ cd krystalgp
 # Install UV if you don't have it
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install project dependencies
+# Install project dependencies (includes spaCy model)
 uv sync
 ```
 
-3. **Install spaCy model:**
-
-```bash
-uv run python -m spacy download en_core_web_sm
-```
-
-4. **Install Tesseract (for OCR parsers):**
+3. **Install Tesseract (for OCR parsers):**
 
 ```bash
 # macOS
@@ -72,7 +66,7 @@ sudo apt-get install tesseract-ocr
 # Windows - download from https://github.com/UB-Mannheim/tesseract/wiki
 ```
 
-5. **Configure API keys:**
+4. **Configure API keys:**
 
 **For CLI usage** (scripts), create `.env`:
 
@@ -216,10 +210,14 @@ uv run python scripts/test_all_parsers.py
 
 ### spaCy Model Not Found
 
-Install the spaCy model:
+The spaCy model should be installed automatically with `uv sync`. If you still get this error, try:
 
 ```bash
-uv run python -m spacy download en_core_web_sm
+# Reinstall dependencies
+uv sync --reinstall
+
+# Or install the model manually
+uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 ```
 
 ### OpenAI API Errors
