@@ -218,20 +218,29 @@ class OCRAttachmentParser(BaseParser):
             self.logger.error(f"Image processing failed: {e}")
             return "", {}
     
-    def _extract_with_llm(self, ocr_text: str) -> Dict[str, Any]:
+    def _extract_with_llm(self, ocr_text: str, email_date: Optional[any] = None) -> Dict[str, Any]:
         """Use LLM to extract structured data from OCR text.
         
         Args:
             ocr_text: Text extracted via OCR
+            email_date: Email date for temporal context
             
         Returns:
             Dict with extracted fields
         """
+        from datetime import datetime
+        email_year = email_date.year if email_date else datetime.now().year
+        
         # Truncate if too long
         if len(ocr_text) > 10000:
             ocr_text = ocr_text[:10000] + "\n... [truncated]"
         
-        prompt = f"""You are an expert at extracting structured information from investment teasers and pitch decks.
+        prompt = f"""You are an expert at extracting structured information from investment teasers and pitch decks for a BC (British Columbia, Canada) focused private equity firm.
+
+**CONTEXT:**
+- Document is from {email_year}
+- Firm prioritizes BC-based companies
+- Need MOST RECENT EBITDA (TTM, LTM, or {email_year})
 
 Extract the following fields from the OCR text below. Return ONLY a valid JSON object:
 
@@ -243,12 +252,24 @@ Extract the following fields from the OCR text below. Return ONLY a valid JSON o
   "raw_ebitda_text": "string or null - Exact EBITDA text"
 }}
 
-Instructions:
-- Look for financial metrics, especially EBITDA or Adjusted EBITDA
-- Look for location mentions (city, state/province)
-- Look for company/project names
-- Return null for fields not found
-- Ensure valid JSON format
+**CRITICAL INSTRUCTIONS:**
+
+FOR EBITDA:
+- PRIORITIZE: TTM, LTM, or {email_year} EBITDA (not {email_year - 1})
+- If multiple years shown, select MOST RECENT
+- Look for: "Adjusted EBITDA", "Portfolio EBITDA", "LTM EBITDA"
+- Convert to millions: $5.2M → 5.2, C$3.6M → 3.6
+
+FOR LOCATIONS:
+- PRIORITIZE BC cities: Vancouver, Victoria, Surrey, Burnaby, Richmond, Kelowna
+- Look for: "HQ:", "Headquarters:", "Location:", "Based in"
+- Include specific city and province if found
+
+FOR COMPANY:
+- Check document header/title
+- Look for project code name or official company name
+
+Return null for fields not found and ensure valid JSON format
 
 OCR TEXT:
 {ocr_text}
