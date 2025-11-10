@@ -148,15 +148,34 @@ def display_parser_results(results):
     for parser_name, result in results.items():
         if result:
             opp = result.opportunity
+            
+            # Format EBITDA with options count
+            ebitda_str = f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "Not found"
+            if opp.ebitda_options:
+                ebitda_str += f" ({len(opp.ebitda_options)} options)"
+            
+            # Format location with options count
+            location_str = opp.hq_location or "Not found"
+            if opp.location_options:
+                location_str += f" ({len(opp.location_options)} options)"
+            
+            # Format company with options count
+            company_str = opp.company_name or "Not found"
+            if opp.company_options:
+                company_str += f" ({len(opp.company_options)} options)"
+            
+            # Format sector with options count
+            sector_str = opp.sector or "Not found"
+            if opp.sector_options:
+                sector_str += f" ({len(opp.sector_options)} options)"
+            
             comparison_data.append(
                 {
                     "Parser": parser_name,
-                    "EBITDA": (
-                        f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "Not found"
-                    ),
-                    "Company": opp.company_name or "Not found",
-                    "HQ Location": opp.hq_location or "Not found",
-                    "Sector": opp.sector or "Not found",
+                    "EBITDA": ebitda_str,
+                    "Company": company_str,
+                    "HQ Location": location_str,
+                    "Sector": sector_str,
                     "Source": result.extraction_source,
                     "Time (s)": f"{result.processing_time_seconds:.2f}",
                 }
@@ -373,6 +392,21 @@ def display_detailed_results(results):
                     )
                 if comp_df:
                     st.dataframe(comp_df, width="stretch", hide_index=True)
+
+            if opp.sector_options:
+                st.markdown("**💡 Sector Options (All Candidates):**")
+                sector_df = []
+                for opt in sorted(opp.sector_options, key=lambda x: x.confidence, reverse=True):
+                    sector_df.append(
+                        {
+                            "Value": opt.value,
+                            "Confidence": f"{opt.confidence:.0%}",
+                            "Source": opt.source,
+                            "Raw Text": opt.raw_text or "N/A",
+                        }
+                    )
+                if sector_df:
+                    st.dataframe(sector_df, width="stretch", hide_index=True)
 
             if opp.raw_ebitda_text and not opp.ebitda_options:
                 st.write("**Raw EBITDA Text:**")
