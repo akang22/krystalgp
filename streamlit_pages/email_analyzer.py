@@ -42,9 +42,10 @@ def get_parsers():
     parsers = {}
 
     try:
-        with st.spinner("Loading NER parser (may take ~30s on first run to download spaCy model)..."):
+        with st.spinner(
+            "Loading NER parser (may take ~30s on first run to download spaCy model)..."
+        ):
             parsers["NER Body"] = NERBodyParser()
-            st.success("✓ NER Body parser loaded")
     except Exception as e:
         st.warning(f"⚠️ NER parser not available: {str(e)[:200]}")
 
@@ -59,9 +60,10 @@ def get_parsers():
         st.warning("OCR + LLM parser not available (set OPENAI_API_KEY)")
 
     try:
-        with st.spinner("Loading OCR + NER parser (may take ~30s on first run to download spaCy model)..."):
+        with st.spinner(
+            "Loading OCR + NER parser (may take ~30s on first run to download spaCy model)..."
+        ):
             parsers["OCR + NER"] = OCRNERParser()
-            st.success("✓ OCR + NER parser loaded")
     except Exception as e:
         st.warning(f"⚠️ OCR + NER parser not available: {str(e)[:200]}")
 
@@ -570,13 +572,13 @@ def main():
 
         st.divider()
 
-        # Attachments with visual display
-        display_attachments_visual(email_data)
+        # Email body
+        display_email_body(email_data)
 
         st.divider()
 
-        # Email body
-        display_email_body(email_data)
+        # Attachments with visual display
+        display_attachments_visual(email_data)
 
         st.divider()
 
