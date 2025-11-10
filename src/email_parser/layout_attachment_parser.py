@@ -127,34 +127,55 @@ class LayoutLLMParser(BaseParser):
         """
         return base64.b64encode(content).decode('utf-8')
     
-    def _extract_with_vision(self, images: List[Image.Image]) -> Dict[str, Any]:
+    def _extract_with_vision(self, images: List[Image.Image], email_date: Optional[datetime] = None) -> Dict[str, Any]:
         """Use GPT-4-Vision to extract data from images.
         
         Args:
             images: List of PIL Images to analyze
+            email_date: Email date for temporal context
             
         Returns:
             Dict with extracted fields
         """
-        prompt_text = """You are an expert at analyzing investment teasers, pitch decks, and confidential information memorandums (CIMs).
+        email_year = email_date.year if email_date else datetime.now().year
+        
+        prompt_text = f"""You are an expert at analyzing investment teasers, pitch decks, and confidential information memorandums (CIMs) for a BC (British Columbia, Canada) focused private equity firm.
+
+**CONTEXT:**
+- Document is from {email_year}
+- Firm prioritizes BC-based companies
+- Need MOST RECENT EBITDA (TTM, LTM, or {email_year})
 
 Analyze this document and extract the following information. Return ONLY a valid JSON object:
 
-{
+{{
   "hq_location": "string or null - Headquarters location (city, state/province, country)",
   "ebitda_millions": number or null - EBITDA in millions of dollars,
   "company_name": "string or null - Company or project name",
   "sector": "string or null - Industry sector or business type",
   "raw_ebitda_text": "string or null - Exact text showing EBITDA figure"
-}
+}}
 
-Instructions:
-- Look for financial tables, executive summaries, and key metrics sections
-- EBITDA may be labeled as "EBITDA", "Adjusted EBITDA", "LTM EBITDA", etc.
-- Convert to millions (e.g., $5.2M → 5.2, $10,000K → 10.0)
-- For location, check headers, footers, company overview sections
-- Return null for fields you cannot find
-- Ensure proper JSON formatting
+**CRITICAL INSTRUCTIONS:**
+
+FOR EBITDA:
+- PRIORITIZE: TTM, LTM, or {email_year} EBITDA (not {email_year - 1})
+- Look in financial tables, executive summaries, key metrics
+- If multiple years shown, select MOST RECENT
+- Look for: "Adjusted EBITDA", "Portfolio EBITDA", "LTM EBITDA"
+- Convert to millions: $5.2M → 5.2, $10,000K → 10.0, C$3.6M → 3.6
+
+FOR LOCATIONS:
+- PRIORITIZE BC cities: Vancouver, Victoria, Surrey, Burnaby, Richmond, Kelowna
+- Look for: "HQ:", "Headquarters:", "Location:", "Based in", headers, footers
+- Include specific city and province if found
+
+FOR COMPANY:
+- Check document header/title/cover page
+- Look for project code name or official company name
+
+FOR SECTOR:
+- Be specific (e.g., "Quick Service Restaurants" not just "Restaurants")
 
 Return only the JSON object, no additional text."""
 
@@ -206,11 +227,12 @@ Return only the JSON object, no additional text."""
             self.logger.error(f"Vision extraction failed: {e}")
             return {}
     
-    def _process_pdf_attachment(self, attachment: Attachment) -> Dict[str, Any]:
+    def _process_pdf_attachment(self, attachment: Attachment, email_date: Optional[datetime] = None) -> Dict[str, Any]:
         """Process PDF attachment with vision model.
         
         Args:
             attachment: PDF attachment
+            email_date: Email date for temporal context
             
         Returns:
             Dict with extracted data
@@ -221,20 +243,21 @@ Return only the JSON object, no additional text."""
             self.logger.warning(f"No images extracted from PDF: {attachment.filename}")
             return {}
         
-        return self._extract_with_vision(images)
+        return self._extract_with_vision(images, email_date)
     
-    def _process_image_attachment(self, attachment: Attachment) -> Dict[str, Any]:
+    def _process_image_attachment(self, attachment: Attachment, email_date: Optional[datetime] = None) -> Dict[str, Any]:
         """Process image attachment with vision model.
         
         Args:
             attachment: Image attachment
+            email_date: Email date for temporal context
             
         Returns:
             Dict with extracted data
         """
         try:
             image = Image.open(io.BytesIO(attachment.content))
-            return self._extract_with_vision([image])
+            return self._extract_with_vision([image], email_date)
         except Exception as e:
             self.logger.error(f"Image processing failed: {e}")
             return {}
@@ -258,13 +281,13 @@ Return only the JSON object, no additional text."""
         for attachment in email_data.attachments:
             if self._is_pdf_attachment(attachment):
                 self.logger.info(f"Processing PDF with vision: {attachment.filename}")
-                data = self._process_pdf_attachment(attachment)
+                data = self._process_pdf_attachment(attachment, email_data.date)
                 if data:
                     all_extracted_data.append(data)
             
             elif self._is_image_attachment(attachment):
                 self.logger.info(f"Processing image with vision: {attachment.filename}")
-                data = self._process_image_attachment(attachment)
+                data = self._process_image_attachment(attachment, email_data.date)
                 if data:
                     all_extracted_data.append(data)
         
