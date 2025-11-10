@@ -60,11 +60,22 @@ class NERBodyParser(BaseParser):
         try:
             return spacy.load(model_name)
         except OSError as e:
-            self.logger.error(f"spaCy model '{model_name}' not found: {e}")
-            raise RuntimeError(
-                f"spaCy model '{model_name}' not installed. "
-                f"Run 'uv sync' to install dependencies."
-            )
+            self.logger.warning(f"spaCy model '{model_name}' not found: {e}")
+            self.logger.info("Attempting to download model (Streamlit Cloud fallback)...")
+            try:
+                # Fallback for Streamlit Cloud deployment
+                import subprocess
+                import sys
+                subprocess.check_call([
+                    sys.executable, "-m", "spacy", "download", model_name, "--quiet"
+                ])
+                return spacy.load(model_name)
+            except Exception as download_error:
+                self.logger.error(f"Failed to download model: {download_error}")
+                raise RuntimeError(
+                    f"spaCy model '{model_name}' not installed and auto-download failed. "
+                    f"Error: {download_error}"
+                )
     
     def _extract_company_name(self, text: str, subject: Optional[str]) -> Optional[str]:
         """Extract company or project name from text.

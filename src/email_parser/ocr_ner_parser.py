@@ -72,11 +72,22 @@ class OCRNERParser(BaseParser):
         try:
             self.nlp = spacy.load(spacy_model)
         except OSError as e:
-            self.logger.error(f"spaCy model '{spacy_model}' not found: {e}")
-            raise RuntimeError(
-                f"spaCy model '{spacy_model}' not installed. "
-                f"Run 'uv sync' to install dependencies."
-            )
+            self.logger.warning(f"spaCy model '{spacy_model}' not found: {e}")
+            self.logger.info("Attempting to download model (Streamlit Cloud fallback)...")
+            try:
+                # Fallback for Streamlit Cloud deployment
+                import subprocess
+                import sys
+                subprocess.check_call([
+                    sys.executable, "-m", "spacy", "download", spacy_model, "--quiet"
+                ])
+                self.nlp = spacy.load(spacy_model)
+            except Exception as download_error:
+                self.logger.error(f"Failed to download model: {download_error}")
+                raise RuntimeError(
+                    f"spaCy model '{spacy_model}' not installed and auto-download failed. "
+                    f"Error: {download_error}"
+                )
         
         self.logger.info(f"Initialized OCR+NER parser with spaCy: {spacy_model}")
     
