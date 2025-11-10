@@ -66,10 +66,6 @@ class LLMBodyParser(BaseParser):
         # Use plain text body, fall back to HTML if needed
         body_text = email_data.body_plain or email_data.body_html or ""
         
-        # Truncate if too long (keep first 8000 chars)
-        if len(body_text) > 8000:
-            body_text = body_text[:8000] + "\n... [truncated]"
-        
         prompt = f"""You are an expert at extracting structured information from investment opportunity emails.
 
 Extract the following fields from the email below. For each field, provide ALL possible values you find with confidence scores.
