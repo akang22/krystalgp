@@ -1,294 +1,66 @@
+
+
 # Email Parser for Investment Opportunities
 
-A comprehensive email parser system for extracting structured investment opportunity data from .msg email files and their attachments. This project compares multiple parsing approaches including LLM-based, NER-based, and OCR+Layout-aware methods.
+A robust email parsing system for extracting investment opportunity data from `.msg` files using multiple approaches: LLM-based (GPT-4), NER/regex-based (spaCy), OCR-based (Tesseract), and layout-aware (GPT-4o Vision).
 
 ## Features
 
-- **Multiple Parsing Approaches**:
-  - LLM-based body parsing (OpenAI GPT-4)
-  - NER + Regex body parsing (spaCy)
-  - OCR + LLM for PDF attachments
-  - Layout-aware LLM for PDF attachments (LayoutLMv3/GPT-4-Vision)
+- **Multiple Parsing Approaches:**
+  - LLM Body Parser (GPT-4)
+  - NER Body Parser (spaCy + regex)
+  - OCR + LLM Attachment Parser (Tesseract + GPT-4)
+  - OCR + NER Attachment Parser (Tesseract + spaCy)
+  - Layout-aware Vision Parser (GPT-4o Vision)
+  - Ensemble Parser (combines all approaches)
 
-- **Extracted Fields**:
-  - Source (email domain)
-  - Recipient (Krystal GP member)
-  - HQ Location
-  - EBITDA (in millions)
-  - Date/timestamp
-  - Bounding boxes for source visualization
+- **Structured Data Extraction:**
+  - EBITDA (with multiple options and confidence scores)
+  - Company name
+  - Headquarters location (with BC focus)
+  - Industry sector
+  - Source domain and recipient
 
-- **Interactive Dashboard**:
-  - Side-by-side comparison of parsing approaches
-  - Accuracy metrics and performance analysis
-  - Visual bounding box overlay on original documents
-  - Batch processing capabilities
+- **Interactive Streamlit Dashboard:**
+  - Upload and analyze `.msg` files
+  - View extraction results from all parsers
+  - Compare parser outputs side-by-side
+  - Direct attachment viewing (PDF, DOCX, images)
 
-## Installation
+## Setup
 
 ### Prerequisites
 
-- Python 3.10 or higher
-- [UV package manager](https://github.com/astral-sh/uv)
-- Tesseract OCR (for OCR-based parsing)
-- Poppler (for PDF to image conversion)
+- Python 3.10-3.12 (required for torch on Intel Macs)
+- [UV](https://github.com/astral-sh/uv) - Fast Python package installer
+- Tesseract OCR (for OCR-based parsers)
 
-### macOS Installation
+### Installation
+
+1. **Clone the repository:**
 
 ```bash
-# Install system dependencies
-brew install tesseract poppler
+git clone <repository-url>
+cd krystalgp
+```
 
-# Install UV (if not already installed)
+2. **Install dependencies with UV:**
+
+```bash
+# Install UV if you don't have it
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Clone the repository
-cd /Users/yanjunk/projects/krystalgp
-
-# Install Python dependencies
+# Install project dependencies
 uv sync
-
-# Download spaCy language model
-uv run python -m spacy download en_core_web_trf
 ```
 
-### Environment Setup
-
-Create a `.env` file in the project root:
-
-```bash
-# OpenAI API key for LLM-based parsing
-OPENAI_API_KEY=your_api_key_here
-
-# Optional: HuggingFace token for models
-HF_TOKEN=your_token_here
-```
-
-## Project Structure
-
-```
-krystalgp/
-├── .cursorrules              # Software engineering guidelines
-├── .gitignore
-├── pyproject.toml            # UV configuration
-├── README.md                 # This file
-├── src/email_parser/
-│   ├── __init__.py
-│   ├── base.py              # Base parser and Pydantic models
-│   ├── llm_body_parser.py   # Approach 1: LLM for body
-│   ├── ner_body_parser.py   # Approach 2: NER for body
-│   ├── ocr_attachment_parser.py   # OCR + LLM for attachments
-│   ├── layout_attachment_parser.py # Layout-aware for attachments
-│   └── utils.py             # Helper functions
-├── tests/
-│   ├── __init__.py
-│   ├── test_parsers.py      # Main test suite
-│   └── fixtures/            # Test data
-├── data/
-│   ├── ground_truth_labels.csv
-│   └── comparison_results.csv
-├── sample_emails/           # Input .msg files
-├── results.csv              # Reference EBITDA data
-├── streamlit_app.py         # Main dashboard
-└── notebooks/               # Exploratory analysis
-```
-
-## Usage
-
-### Quick Start
-
-1. **Set up your environment variables (optional):**
-
-```bash
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY (only needed for LLM parsers)
-```
-
-**Note**: The NER Body Parser works without any API keys!
-
-2. **Download spaCy model:**
-
-```bash
-# Use uv pip to install the spaCy model directly
-uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
-```
-
-3. **Run the Streamlit dashboard:**
-
-```bash
-uv run streamlit run streamlit_app.py
-```
-
-Navigate to `http://localhost:8501` to view the dashboard.
-
-### Running Parsers Programmatically
-
-```python
-from pathlib import Path
-from email_parser.llm_body_parser import LLMBodyParser
-from email_parser.ner_body_parser import NERBodyParser
-from email_parser.ocr_attachment_parser import OCRAttachmentParser
-
-# Initialize parsers
-llm_parser = LLMBodyParser()  # Requires OPENAI_API_KEY
-ner_parser = NERBodyParser()  # No API key needed
-ocr_parser = OCRAttachmentParser()  # Requires OPENAI_API_KEY
-
-# Parse an email
-email_path = Path("sample_emails/Project Aberdeen - Krystal Growth Partners .msg")
-result = llm_parser.parse(email_path)
-
-# Access extracted data
-opportunity = result.opportunity
-print(f"Source: {opportunity.source_domain}")
-print(f"Recipient: {opportunity.recipient}")
-print(f"EBITDA: ${opportunity.ebitda_millions}M")
-print(f"HQ Location: {opportunity.hq_location}")
-print(f"Company: {opportunity.company_name}")
-print(f"Processing Time: {result.processing_time_seconds:.2f}s")
-```
-
-### Running Full Evaluation
-
-Run all parsers on the entire dataset and generate comparison metrics:
-
-```bash
-uv run python scripts/run_evaluation.py
-```
-
-This will:
-- Process all emails in `ground_truth_labels.csv`
-- Run all available parsers
-- Generate accuracy metrics
-- Save results to `data/comparison_results.csv`
-
-### Running Tests
-
-```bash
-# Run all tests
-uv run pytest
-
-# Run with coverage report
-uv run pytest --cov=src --cov-report=html
-
-# Run specific test file
-uv run pytest tests/test_parsers.py -v
-
-# Run tests without API calls (skip LLM tests)
-uv run pytest -m "not requires_api"
-```
-
-### Creating Ground Truth Labels
-
-To add more ground truth labels:
-
-```bash
-# Run helper script (requires API key)
-uv run python scripts/create_ground_truth.py
-
-# Manually edit data/ground_truth_labels.csv
-# Verify EBITDA values against results.csv and source documents
-```
-
-## Parsing Approaches
-
-The system combines **body parsers** (for email text) with **attachment parsers** (for PDF/images):
-
-### Body Parsers
-
-#### 1. LLM Body Parser (`llm_body_parser.py`)
-- **Method**: OpenAI GPT-4 with structured JSON output
-- **Pros**: High accuracy, understands context and nuance
-- **Cons**: Requires API key, slower, costs per email
-- **Best for**: Complex email body text with varied formats
-
-#### 2. NER Body Parser (`ner_body_parser.py`)
-- **Method**: spaCy NER + regex patterns
-- **Pros**: Fast, works offline, no API costs
-- **Cons**: Lower accuracy, struggles with complex patterns
-- **Best for**: Baseline comparison, high-volume processing
-
-### Attachment Parsers
-
-#### 3. OCR + LLM Attachment Parser (`ocr_attachment_parser.py`)
-- **Method**: Pytesseract OCR → GPT-4 for extraction
-- **Pros**: Works on scanned PDFs, extracts bounding boxes
-- **Cons**: OCR quality varies, slower processing
-- **Best for**: Scanned documents, need bounding box coordinates
-
-#### 4. Layout-Aware LLM Parser (`layout_attachment_parser.py`)
-- **Method**: GPT-4-Vision for direct image/PDF analysis
-- **Pros**: Understands visual layout, tables, charts
-- **Cons**: Requires vision model access, highest API cost
-- **Best for**: Complex structured documents (pitch decks, CIMs)
-
-## Evaluation Metrics
-
-The system evaluates parsers on:
-- **Exact Match Accuracy**: Percentage of exact matches with ground truth
-- **Fuzzy Match Accuracy**: Percentage of semantically similar matches
-- **EBITDA Precision/Recall**: Accuracy of financial figure extraction
-- **Processing Time**: Average time per email
-- **Field Coverage**: Percentage of fields successfully extracted
-
-## Development
-
-### Code Quality
-
-This project follows strict software engineering practices:
-- Type hints on all functions
-- Google-style docstrings
-- >80% test coverage
-- Automated linting with ruff and black
-- Small, focused commits
-
-See `.cursorrules` for detailed guidelines.
-
-### Contributing
-
-1. Create a feature branch
-2. Make focused commits
-3. Add tests for new features
-4. Run tests and linting before committing
-5. Submit pull request
-
-## License
-
-MIT License
-
-## Troubleshooting
-
-### Import Errors
-
-If you see import errors, ensure you're using `uv run`:
-
-```bash
-uv run python scripts/run_evaluation.py
-uv run streamlit run streamlit_app.py
-```
-
-### spaCy Model Not Found
-
-Download the required model using `uv pip`:
+3. **Install spaCy model:**
 
 ```bash
 uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 ```
 
-**Why not `python -m spacy download`?** UV creates virtual environments without `pip` by default, so we use `uv pip install` directly.
-
-### OpenAI API Errors
-
-Check that your API key is set:
-
-```bash
-echo $OPENAI_API_KEY
-# or check .env file
-```
-
-### Tesseract Not Found (for OCR)
-
-Install Tesseract:
+4. **Install Tesseract (for OCR parsers):**
 
 ```bash
 # macOS
@@ -297,19 +69,214 @@ brew install tesseract
 # Ubuntu/Debian
 sudo apt-get install tesseract-ocr
 
-# Set path in .env
-TESSERACT_CMD=/opt/homebrew/bin/tesseract
+# Windows - download from https://github.com/UB-Mannheim/tesseract/wiki
 ```
 
-## Next Steps
+5. **Configure API keys:**
 
-1. **Verify Ground Truth**: Review and correct `data/ground_truth_labels.csv`
-2. **Run Evaluation**: Execute `scripts/run_evaluation.py` to test accuracy
-3. **Explore Dashboard**: Launch Streamlit app to visualize results
-4. **Iterate**: Improve prompts, add more test cases, tune extraction logic
-5. **Production**: Deploy chosen approach for processing new emails
+**For CLI usage** (scripts), create `.env`:
 
-## Contact
+```bash
+cp .env.example .env
+# Edit .env and add your OpenAI API key
+```
 
-Krystal Growth Partners
+**For Streamlit**, create `.streamlit/secrets.toml`:
 
+```bash
+mkdir -p .streamlit
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+# Edit .streamlit/secrets.toml and add your API keys
+```
+
+**Note:** 
+- `OPENAI_API_KEY` is optional - only needed for LLM-based parsers
+- NER and OCR+NER parsers work without any API keys
+- Streamlit uses `secrets.toml` for security best practices
+- CLI scripts use `.env` for local development
+
+## Usage
+
+### Run Streamlit Dashboard
+
+```bash
+uv run streamlit run streamlit_app.py
+```
+
+The dashboard allows you to:
+- Upload `.msg` files directly
+- Analyze emails with all parsers
+- View detailed extraction results with confidence scores
+- Preview attachments inline
+
+### Run Individual Parsers
+
+Test all parsers on a single email:
+
+```bash
+uv run python scripts/test_all_parsers.py
+```
+
+Test all emails in the dataset:
+
+```bash
+uv run python scripts/test_all_emails.py
+```
+
+Demo specific parsers:
+
+```bash
+uv run python scripts/demo_parsers.py
+```
+
+### Run Tests
+
+```bash
+uv run pytest
+```
+
+## Project Structure
+
+```
+krystalgp/
+├── src/email_parser/
+│   ├── base.py                          # Base classes and Pydantic models
+│   ├── utils.py                         # Utility functions (EBITDA extraction, etc.)
+│   ├── llm_body_parser.py              # LLM-based body parser (GPT-4)
+│   ├── ner_body_parser.py              # NER + regex body parser
+│   ├── ocr_attachment_parser.py        # OCR + LLM attachment parser
+│   ├── ocr_ner_parser.py               # OCR + NER attachment parser
+│   ├── layout_attachment_parser.py     # Layout-aware vision parser
+│   └── ensemble_parser.py              # Combines all parsers
+├── streamlit_app.py                     # Main Streamlit app
+├── streamlit_pages/
+│   └── email_analyzer.py               # Email analyzer page
+├── scripts/
+│   ├── test_all_parsers.py             # Test all parsers on one email
+│   ├── test_all_emails.py              # Test on multiple emails
+│   └── demo_parsers.py                 # Demo script
+├── sample_emails/                       # Sample .msg files
+├── tests/                               # Pytest tests
+├── .env.example                         # Environment variable template (CLI)
+├── .streamlit/secrets.toml.example     # Streamlit secrets template
+└── README.md                            # This file
+```
+
+## Parser Details
+
+### LLM Body Parser
+- Uses OpenAI GPT-4
+- Analyzes email body text
+- Extracts multiple options with confidence scores
+- BC location focus and temporal EBITDA context
+
+### NER Body Parser
+- Uses spaCy NER + custom regex
+- Fast, offline parsing
+- No API costs
+- Good for structured emails
+
+### OCR + LLM Parser
+- Extracts text from PDFs/images using Tesseract
+- Uses GPT-4 for structured extraction
+- Handles scanned documents
+- Table-aware extraction
+
+### OCR + NER Parser
+- OCR text extraction + NER/regex
+- Completely offline
+- No API costs
+- Good baseline for attachments
+
+### Layout Vision Parser
+- Uses GPT-4o Vision
+- Analyzes document layout directly
+- Best for complex visual documents
+- Handles tables, charts, and mixed layouts
+
+### Ensemble Parser
+- Combines all parser outputs
+- Intelligent tie-breaking strategies:
+  1. Fuzzy Consensus (values within ±$0.5M)
+  2. Majority Vote
+  3. Confidence Selection
+  4. Source Prioritization (attachment > body)
+  5. Historical Validation
+- Produces "Final Results"
+
+## Troubleshooting
+
+### Import Error: `No module named 'email_parser'`
+
+Make sure you're running scripts with `uv run`:
+
+```bash
+uv run python scripts/test_all_parsers.py
+```
+
+### spaCy Model Not Found
+
+Install the spaCy model directly:
+
+```bash
+uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+```
+
+### OpenAI API Errors
+
+The `OPENAI_API_KEY` is **optional**. If not set:
+- LLM-based parsers will be unavailable
+- NER and OCR+NER parsers will still work
+
+For Streamlit, add your key to `.streamlit/secrets.toml`:
+
+```toml
+OPENAI_API_KEY = "sk-your-key-here"
+```
+
+For CLI, add to `.env`:
+
+```bash
+OPENAI_API_KEY=sk-your-key-here
+```
+
+### Tesseract Not Found
+
+Install Tesseract OCR:
+
+```bash
+# macOS
+brew install tesseract
+
+# Check installation
+which tesseract
+```
+
+The code auto-detects Tesseract location. If needed, set manually in `.streamlit/secrets.toml`:
+
+```toml
+TESSERACT_CMD = "/usr/local/bin/tesseract"
+```
+
+## Recent Improvements
+
+### BC Focus & Temporal Context (Nov 2025)
+All LLM-based parsers now include:
+- **BC Location Prioritization**: Higher confidence for British Columbia cities (Vancouver, Victoria, Kelowna, etc.)
+- **Temporal EBITDA Context**: Uses email date to prioritize TTM/LTM and current year EBITDA over historical data
+- **Multiple Options**: Returns all possible values with confidence scores for tie-breaking
+
+See `PROMPT_IMPROVEMENTS.md` for details.
+
+### Ensemble Tie-Breaking
+The ensemble parser uses intelligent selection strategies (not averaging) to resolve conflicts between parsers.
+
+See `docs/TIE_BREAKING_STRATEGIES.md` for the full logic.
+
+## License
+
+MIT License
+
+## Contributing
+
+Contributions welcome! Please follow the coding standards in `.cursorrules`.
