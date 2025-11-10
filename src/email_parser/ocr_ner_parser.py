@@ -78,10 +78,23 @@ class OCRNERParser(BaseParser):
                 # Fallback for Streamlit Cloud deployment
                 import subprocess
                 import sys
-                subprocess.check_call([
-                    sys.executable, "-m", "spacy", "download", spacy_model, "--quiet"
-                ])
+                self.logger.info(f"Running: python -m spacy download {spacy_model}")
+                result = subprocess.run(
+                    [sys.executable, "-m", "spacy", "download", spacy_model],
+                    capture_output=True,
+                    text=True,
+                    timeout=120  # 2 minute timeout
+                )
+                
+                if result.returncode != 0:
+                    self.logger.error(f"Download failed: {result.stderr}")
+                    raise RuntimeError(f"Download command failed: {result.stderr}")
+                
+                self.logger.info(f"Download successful: {result.stdout}")
                 self.nlp = spacy.load(spacy_model)
+            except subprocess.TimeoutExpired:
+                self.logger.error("Download timed out after 2 minutes")
+                raise RuntimeError("spaCy model download timed out")
             except Exception as download_error:
                 self.logger.error(f"Failed to download model: {download_error}")
                 raise RuntimeError(
