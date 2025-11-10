@@ -335,10 +335,10 @@ class EnsembleParser(BaseParser):
         
         if strategy == 'all' or strategy == 'fuzzy':
             # Try fuzzy consensus first - if values are close, they're the same
-            consensus = self._fuzzy_consensus(ebitda_values, tolerance=0.5)
+            consensus = self._fuzzy_consensus(ebitda_values, tolerance=0.001)
             if consensus:
                 final_ebitda = consensus
-                tie_break_method = "fuzzy_consensus (values within ±$0.5M)"
+                tie_break_method = "fuzzy_consensus (values within ±$1K)"
         
         if final_ebitda is None and (strategy == 'all' or strategy == 'majority'):
             # Try majority vote - if multiple parsers agree exactly
