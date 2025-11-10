@@ -93,7 +93,10 @@ Return ONLY a valid JSON object with these exact fields:
   "company_options": [
     {{"value": "Project Gravy", "confidence": 0.95, "source": "subject line", "raw_text": "Project Gravy -"}}
   ],
-  "sector": "string or null - Industry sector or type of business"
+  "sector_options": [
+    {{"value": "Quick Service Restaurants", "confidence": 0.95, "source": "email body", "raw_text": "QSR portfolio"}},
+    {{"value": "Food & Beverage", "confidence": 0.7, "source": "general category", "raw_text": "restaurant operations"}}
+  ]
 }}
 
 **CRITICAL INSTRUCTIONS:**
@@ -122,8 +125,9 @@ FOR COMPANY:
 - Confidence: subject line (0.95), official name (0.9), variations (0.6)
 
 FOR SECTOR:
-- Single value only (not an array)
+- Provide up to 3 sector options (most specific to least specific)
 - Be specific: "Quick Service Restaurants" not just "Food"
+- Confidence: highly specific (0.95), general category (0.7), implied (0.5)
 
 GENERAL:
 - Include source: "email body", "subject line", "signature", etc.
@@ -207,6 +211,7 @@ Return only the JSON object, no additional text or explanation."""
             ebitda_options = []
             location_options = []
             company_options = []
+            sector_options = []
             
             # Convert ebitda_options
             for opt in extracted_data.get('ebitda_options', []):
@@ -223,10 +228,16 @@ Return only the JSON object, no additional text or explanation."""
                 if isinstance(opt, dict) and 'value' in opt:
                     company_options.append(FieldOption(**opt))
             
+            # Convert sector_options
+            for opt in extracted_data.get('sector_options', []):
+                if isinstance(opt, dict) and 'value' in opt:
+                    sector_options.append(FieldOption(**opt))
+            
             # Use highest confidence options as primary values
             best_ebitda = max(ebitda_options, key=lambda x: x.confidence) if ebitda_options else None
             best_location = max(location_options, key=lambda x: x.confidence) if location_options else None
             best_company = max(company_options, key=lambda x: x.confidence) if company_options else None
+            best_sector = max(sector_options, key=lambda x: x.confidence) if sector_options else None
             
             # Create InvestmentOpportunity
             opportunity = InvestmentOpportunity(
@@ -236,11 +247,12 @@ Return only the JSON object, no additional text or explanation."""
                 ebitda_millions=best_ebitda.value if best_ebitda else None,
                 date=email_data.date,
                 company_name=best_company.value if best_company else None,
-                sector=extracted_data.get('sector'),
+                sector=best_sector.value if best_sector else None,
                 raw_ebitda_text=best_ebitda.raw_text if best_ebitda else None,
                 ebitda_options=ebitda_options,
                 location_options=location_options,
                 company_options=company_options,
+                sector_options=sector_options,
             )
             
             self.logger.info(f"Extracted: EBITDA=${opportunity.ebitda_millions}M, Location={opportunity.hq_location}")

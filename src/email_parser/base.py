@@ -72,6 +72,7 @@ class InvestmentOpportunity(BaseModel):
         ebitda_options: List of candidate EBITDA values with confidence
         location_options: List of candidate locations with confidence
         company_options: List of candidate company names with confidence
+        sector_options: List of candidate sectors with confidence
     """
 
     source_domain: Optional[str] = None
@@ -90,6 +91,7 @@ class InvestmentOpportunity(BaseModel):
     ebitda_options: List[FieldOption] = Field(default_factory=list)
     location_options: List[FieldOption] = Field(default_factory=list)
     company_options: List[FieldOption] = Field(default_factory=list)
+    sector_options: List[FieldOption] = Field(default_factory=list)
 
     @field_validator("ebitda_millions")
     @classmethod

@@ -320,6 +320,19 @@ class NERBodyParser(BaseParser):
         # Extract sector
         sector = self._extract_sector(body_text)
         
+        # Collect multiple sector options
+        sector_options = []
+        if sector:
+            # Extract sector returns a string match from keyword list
+            # Confidence based on how specific the match is
+            confidence = 0.7  # Base confidence for NER pattern match
+            sector_options.append(FieldOption(
+                value=sector,
+                confidence=confidence,
+                source="email body (keyword match)",
+                raw_text=None
+            ))
+        
         opportunity = InvestmentOpportunity(
             source_domain=source_domain,
             recipient=recipient,
@@ -332,6 +345,7 @@ class NERBodyParser(BaseParser):
             ebitda_options=ebitda_options,
             location_options=location_options,
             company_options=company_options,
+            sector_options=sector_options,
         )
         
         self.logger.info(

@@ -26,6 +26,7 @@ dependencies = [
     
     # HuggingFace transformers
     "transformers>=4.37.0",
+    "torch>=1.13.0,<2.0.0",  # Pin to 1.x for macOS x86_64 compatibility
     
     # Web framework
     "streamlit>=1.31.0",
