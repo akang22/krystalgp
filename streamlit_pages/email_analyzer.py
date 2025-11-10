@@ -42,9 +42,11 @@ def get_parsers():
     parsers = {}
 
     try:
-        parsers["NER Body"] = NERBodyParser()
+        with st.spinner("Loading NER parser (may take ~30s on first run to download spaCy model)..."):
+            parsers["NER Body"] = NERBodyParser()
+            st.success("✓ NER Body parser loaded")
     except Exception as e:
-        st.error(f"NER parser error: {e}")
+        st.warning(f"⚠️ NER parser not available: {str(e)[:200]}")
 
     try:
         parsers["LLM Body"] = LLMBodyParser()
@@ -57,9 +59,11 @@ def get_parsers():
         st.warning("OCR + LLM parser not available (set OPENAI_API_KEY)")
 
     try:
-        parsers["OCR + NER"] = OCRNERParser()
+        with st.spinner("Loading OCR + NER parser (may take ~30s on first run to download spaCy model)..."):
+            parsers["OCR + NER"] = OCRNERParser()
+            st.success("✓ OCR + NER parser loaded")
     except Exception as e:
-        st.warning(f"OCR + NER parser not available: {e}")
+        st.warning(f"⚠️ OCR + NER parser not available: {str(e)[:200]}")
 
     try:
         parsers["Layout Vision"] = LayoutLLMParser()
