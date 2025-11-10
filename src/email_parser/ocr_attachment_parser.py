@@ -328,7 +328,7 @@ Return only the JSON object:"""
         combined_text = "\n\n".join(all_ocr_text)
         
         # Extract structured data using LLM
-        extracted_data = self._extract_with_llm(combined_text)
+        extracted_data = self._extract_with_llm(combined_text, email_data.date)
         
         # Create opportunity
         opportunity = InvestmentOpportunity(

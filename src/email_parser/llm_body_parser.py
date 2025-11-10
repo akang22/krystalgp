@@ -66,7 +66,15 @@ class LLMBodyParser(BaseParser):
         # Use plain text body, fall back to HTML if needed
         body_text = email_data.body_plain or email_data.body_html or ""
         
-        prompt = f"""You are an expert at extracting structured information from investment opportunity emails.
+        # Get email year for context
+        email_year = email_data.date.year if email_data.date else datetime.now().year
+        
+        prompt = f"""You are an expert at extracting structured information from investment opportunity emails for a private equity firm focused on British Columbia (BC), Canada.
+
+**CONTEXT:**
+- This email was received in {email_year}
+- The firm is particularly interested in BC-based companies or those with operations in British Columbia
+- We need the MOST RECENT financial data (TTM, LTM, or {email_year} EBITDA)
 
 Extract the following fields from the email below. For each field, provide ALL possible values you find with confidence scores.
 
@@ -78,8 +86,9 @@ Return ONLY a valid JSON object with these exact fields:
     {{"value": 4.5, "confidence": 0.7, "source": "subject line", "raw_text": "~$4.5M EBITDA"}}
   ],
   "location_options": [
-    {{"value": "Vancouver, BC", "confidence": 0.9, "source": "email body", "raw_text": "based in Vancouver"}},
-    {{"value": "British Columbia", "confidence": 0.6, "source": "general mention", "raw_text": "BC operations"}}
+    {{"value": "Vancouver, BC", "confidence": 0.95, "source": "email body", "raw_text": "headquartered in Vancouver"}},
+    {{"value": "British Columbia", "confidence": 0.85, "source": "general mention", "raw_text": "BC operations"}},
+    {{"value": "Toronto, ON", "confidence": 0.6, "source": "secondary location", "raw_text": "office in Toronto"}}
   ],
   "company_options": [
     {{"value": "Project Gravy", "confidence": 0.95, "source": "subject line", "raw_text": "Project Gravy -"}}
@@ -87,18 +96,42 @@ Return ONLY a valid JSON object with these exact fields:
   "sector": "string or null - Industry sector or type of business"
 }}
 
-Instructions:
-- For EBITDA: Find ALL mentions, rank by confidence (clear statement = 0.9+, implied = 0.5-0.8)
-- For locations: Include all candidates (explicit HQ = 0.9+, general mention = 0.5-0.8)
-- For company: Include variations (official name = 0.9+, project codename = 0.7+)
-- Convert EBITDA to millions (e.g., "$5.2M" → 5.2, "$10M" → 10.0)
-- Set confidence based on clarity: explicit statement (0.9+), implied (0.6-0.8), uncertain (0.3-0.5)
-- Include source: "email body", "subject line", "signature", etc.
-- Include raw_text: the exact text snippet
-- Extract sector (single value, not multiple)
-- Return empty arrays if no options found
-- Ensure proper JSON formatting (use double quotes, no trailing commas)
+**CRITICAL INSTRUCTIONS:**
 
+FOR EBITDA:
+- PRIORITIZE: TTM (Trailing Twelve Months), LTM (Last Twelve Months), or {email_year} EBITDA
+- AVOID: Historical data from {email_year - 1} or earlier unless clearly marked as current
+- Look for: "LTM EBITDA", "TTM EBITDA", "{email_year} EBITDA", "Adjusted EBITDA", "Current EBITDA"
+- If multiple years shown, select the MOST RECENT period
+- Convert to millions: "$5.2M" → 5.2, "$10M" → 10.0, "$3,600k" → 3.6
+- Include "Adjusted EBITDA", "Pro Forma EBITDA", "Portfolio EBITDA" as separate options
+- Confidence: explicit LTM/TTM with clear $ (0.95), current year (0.9), implied/estimated (0.6-0.8), old data (0.3)
+
+FOR LOCATIONS (HIGH PRIORITY - BC FOCUS):
+- **PRIORITIZE BC LOCATIONS**: Cities/regions in British Columbia should get HIGHEST confidence
+- Look for: "headquarters", "HQ", "based in", "located in", "head office"
+- BC cities to watch for: Vancouver, Victoria, Kelowna, Surrey, Burnaby, Richmond, Abbotsford, etc.
+- Include specific cities (Vancouver) AND provinces (British Columbia, BC) as separate options
+- Mark BC locations with 0.95 confidence if explicit, 0.85 if implied
+- Non-BC locations: 0.7 for explicit, 0.5 for general mention
+- Include target markets/service areas if mentioned
+
+FOR COMPANY:
+- Look in subject line first (Project names, code names)
+- Check body for official company names
+- Confidence: subject line (0.95), official name (0.9), variations (0.6)
+
+FOR SECTOR:
+- Single value only (not an array)
+- Be specific: "Quick Service Restaurants" not just "Food"
+
+GENERAL:
+- Include source: "email body", "subject line", "signature", etc.
+- Include raw_text: the exact snippet where you found this
+- Return empty arrays if no options found
+- Proper JSON only (double quotes, no trailing commas)
+
+EMAIL DATE: {email_data.date.strftime("%B %d, %Y") if email_data.date else "Unknown"}
 EMAIL SUBJECT: {email_data.subject or "N/A"}
 
 EMAIL BODY:
