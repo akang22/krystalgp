@@ -120,7 +120,7 @@ def display_attachments(email_data):
             }
         )
 
-    st.dataframe(pd.DataFrame(attachment_data), width="wide")
+    st.dataframe(pd.DataFrame(attachment_data), width="stretch")
 
 
 def display_email_body(email_data):
@@ -175,7 +175,7 @@ def display_parser_results(results):
             )
 
     df = pd.DataFrame(comparison_data)
-    st.dataframe(df, width="wide", hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
 
 def display_confidence_calculation(results):
@@ -244,7 +244,7 @@ def display_confidence_calculation(results):
         total_weight += final_weight
 
     # Display calculation table
-    st.dataframe(pd.DataFrame(calc_data), width="wide", hide_index=True)
+    st.dataframe(pd.DataFrame(calc_data), width="stretch", hide_index=True)
 
     # Show selection logic
     st.markdown("### 🎯 Selection Logic")
@@ -342,7 +342,7 @@ def display_detailed_results(results):
                         }
                     )
                 if ebitda_df:
-                    st.dataframe(ebitda_df, width="wide", hide_index=True)
+                    st.dataframe(ebitda_df, width="stretch", hide_index=True)
 
             if opp.location_options:
                 st.markdown("**💡 Location Options (All Candidates):**")
@@ -357,7 +357,7 @@ def display_detailed_results(results):
                         }
                     )
                 if loc_df:
-                    st.dataframe(loc_df, width="wide", hide_index=True)
+                    st.dataframe(loc_df, width="stretch", hide_index=True)
 
             if opp.company_options:
                 st.markdown("**💡 Company Options (All Candidates):**")
@@ -372,7 +372,7 @@ def display_detailed_results(results):
                         }
                     )
                 if comp_df:
-                    st.dataframe(comp_df, width="wide", hide_index=True)
+                    st.dataframe(comp_df, width="stretch", hide_index=True)
 
             if opp.raw_ebitda_text and not opp.ebitda_options:
                 st.write("**Raw EBITDA Text:**")
