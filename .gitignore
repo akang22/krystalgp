@@ -33,6 +33,9 @@ env.bak/
 venv.bak/
 .uv/
 
+# UV lock file
+uv.lock
+
 # IDEs
 .vscode/
 .idea/
