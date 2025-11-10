@@ -105,7 +105,7 @@ def page_comparison():
     
     st.subheader("Ground Truth Dataset")
     st.write(f"Total emails in ground truth: **{len(ground_truth)}**")
-    st.dataframe(ground_truth, width="wide"=True)
+    st.dataframe(ground_truth, width="wide")
     
     # Accuracy metrics section
     st.subheader("Accuracy Metrics")
@@ -185,7 +185,7 @@ def page_comparison():
     
     # Display results table
     results_df = pd.DataFrame(results_data)
-    st.dataframe(results_df, width="wide"=True)
+    st.dataframe(results_df, width="wide")
     
     # Visualization
     st.subheader("Performance Comparison")
@@ -346,7 +346,7 @@ def page_batch_processing():
         
         # Display results
         results_df = pd.DataFrame(all_results)
-        st.dataframe(results_df, width="wide"=True)
+        st.dataframe(results_df, width="wide")
         
         # Download button
         csv = results_df.to_csv(index=False)
