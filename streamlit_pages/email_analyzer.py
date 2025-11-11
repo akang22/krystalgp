@@ -565,73 +565,106 @@ def main():
         st.error("No parsers available. Check your configuration.")
         return
 
-    # Parse email
-    with st.spinner("Parsing email..."):
-        # Get email metadata first
-        try:
-            first_parser = list(parsers.values())[0]
-            email_data = first_parser.extract_msg_file(email_path)
-        except Exception as e:
-            st.error(f"Failed to read email: {e}")
-            return
+    # Initialize session state for caching
+    if "cached_results" not in st.session_state:
+        st.session_state.cached_results = {}
+    if "cached_email_data" not in st.session_state:
+        st.session_state.cached_email_data = {}
 
-        # Display email info
-        display_email_metadata(email_data)
+    # Check if we have cached results for this email
+    cache_key = selected_email
+    use_cached = (
+        cache_key in st.session_state.cached_results
+        and cache_key in st.session_state.cached_email_data
+    )
 
-        st.divider()
-
-        # Email body
-        display_email_body(email_data)
-
-        st.divider()
-
-        # Attachments with visual display
-        display_attachments_visual(email_data)
-
-        st.divider()
-
-        # Run all parsers
-        results = {}
-
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-
-        error_log = []
-
-        for idx, (parser_name, parser) in enumerate(parsers.items()):
-            status_text.text(f"Running {parser_name}...")
-
+    if use_cached:
+        # Load from cache
+        st.info("📦 Loaded results from cache (click 'Reparse' to refresh)")
+        email_data = st.session_state.cached_email_data[cache_key]
+        results = st.session_state.cached_results[cache_key]
+    else:
+        # Parse email
+        with st.spinner("Parsing email..."):
+            # Get email metadata first
             try:
-                result = parser.parse(email_path)
-                results[parser_name] = result
-
-                # Debug: show what was extracted
-                if result and result.opportunity:
-                    opp = result.opportunity
-                    ebitda_str = f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "None"
-                    status_text.text(
-                        f"✓ {parser_name}: EBITDA={ebitda_str}, Company={opp.company_name or 'None'}"
-                    )
-
-                    # Log errors if any
-                    if result.errors:
-                        error_log.append(f"{parser_name}: {', '.join(result.errors)}")
-
+                first_parser = list(parsers.values())[0]
+                email_data = first_parser.extract_msg_file(email_path)
             except Exception as e:
-                error_msg = f"{parser_name} failed: {str(e)}"
-                error_log.append(error_msg)
-                st.error(f"❌ {error_msg}")
-                results[parser_name] = None
+                st.error(f"Failed to read email: {e}")
+                return
 
-            progress_bar.progress((idx + 1) / len(parsers))
+            # Run all parsers
+            results = {}
 
-        status_text.text("✅ Parsing complete!")
+            progress_bar = st.progress(0)
+            status_text = st.empty()
 
-        # Show errors if any
-        if error_log:
-            with st.expander("⚠️ Errors/Warnings"):
-                for err in error_log:
-                    st.warning(err)
+            error_log = []
+
+            for idx, (parser_name, parser) in enumerate(parsers.items()):
+                status_text.text(f"Running {parser_name}...")
+
+                try:
+                    result = parser.parse(email_path)
+                    results[parser_name] = result
+
+                    # Debug: show what was extracted
+                    if result and result.opportunity:
+                        opp = result.opportunity
+                        ebitda_str = (
+                            f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "None"
+                        )
+                        status_text.text(
+                            f"✓ {parser_name}: EBITDA={ebitda_str}, Company={opp.company_name or 'None'}"
+                        )
+
+                        # Log errors if any
+                        if result.errors:
+                            error_log.append(f"{parser_name}: {', '.join(result.errors)}")
+
+                except Exception as e:
+                    error_msg = f"{parser_name} failed: {str(e)}"
+                    error_log.append(error_msg)
+                    st.error(f"❌ {error_msg}")
+                    results[parser_name] = None
+
+                progress_bar.progress((idx + 1) / len(parsers))
+
+            status_text.text("✅ Parsing complete!")
+
+            # Show errors if any
+            if error_log:
+                with st.expander("⚠️ Errors/Warnings"):
+                    for err in error_log:
+                        st.warning(err)
+
+            # Cache results
+            st.session_state.cached_results[cache_key] = results
+            st.session_state.cached_email_data[cache_key] = email_data
+
+    # Add reparse button
+    if st.button("🔄 Reparse Email", help="Clear cache and reparse this email"):
+        if cache_key in st.session_state.cached_results:
+            del st.session_state.cached_results[cache_key]
+        if cache_key in st.session_state.cached_email_data:
+            del st.session_state.cached_email_data[cache_key]
+        st.rerun()
+
+    # Display email info
+    display_email_metadata(email_data)
+
+    st.divider()
+
+    # Email body
+    display_email_body(email_data)
+
+    st.divider()
+
+    # Attachments with visual display
+    display_attachments_visual(email_data)
+
+    st.divider()
 
         status_text.text("✅ Parsing complete!")
         progress_bar.empty()
