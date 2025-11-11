@@ -2,6 +2,8 @@
 
 This module implements a parser that uses OCR to extract text from PDF
 attachments, then uses LLM to extract structured data.
+
+Updated: 2025-11-11 - Fixed _extract_with_llm signature to accept email_date parameter
 """
 
 import io
