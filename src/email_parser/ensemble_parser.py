@@ -194,22 +194,19 @@ class EnsembleParser(BaseParser):
         return None
 
     def _select_best_field(
-        self, 
-        results: List[Tuple[str, ParserResult]], 
-        options_field: str,
-        fallback_field: str
+        self, results: List[Tuple[str, ParserResult]], options_field: str, fallback_field: str
     ) -> Optional[str]:
         """Select best value for a field using confidence-based selection.
-        
+
         Combines:
         - Parser method confidence (LLM > Vision > NER > OCR)
         - Extraction confidence (from FieldOption)
-        
+
         Args:
             results: List of (parser_name, result) tuples
             options_field: Name of the options field (e.g., "location_options")
             fallback_field: Name of the fallback field (e.g., "hq_location")
-            
+
         Returns:
             Best value or None
         """
@@ -220,33 +217,33 @@ class EnsembleParser(BaseParser):
             "NER": 0.7,
             "OCR": 0.5,
         }
-        
+
         source_weights = {
             "attachment": 1.2,
             "body": 1.0,
             "both": 1.1,
         }
-        
+
         best_value = None
         best_combined_score = 0.0
         best_source = ""
-        
+
         for name, result in results:
             # Get parser method confidence
             method_confidence = parser_weights.get(name, 0.5)
             method_confidence *= source_weights.get(result.extraction_source, 1.0)
-            
+
             # Check options field
             options = getattr(result.opportunity, options_field, [])
             for option in options:
                 # Combined score: method confidence × extraction confidence
                 combined_score = method_confidence * option.confidence
-                
+
                 if combined_score > best_combined_score:
                     best_combined_score = combined_score
                     best_value = option.value
                     best_source = f"{name} (method: {method_confidence:.2f}, extraction: {option.confidence:.2f}, combined: {combined_score:.2f})"
-        
+
         # Fallback to simple field if no options
         if best_value is None:
             for name, result in results:
@@ -255,7 +252,7 @@ class EnsembleParser(BaseParser):
                     best_value = fallback_value
                     best_source = f"{name} (fallback)"
                     break
-            
+
             # Last resort: any non-None value
             if best_value is None:
                 for name, result in results:
@@ -264,10 +261,10 @@ class EnsembleParser(BaseParser):
                         best_value = fallback_value
                         best_source = f"{name} (last resort)"
                         break
-        
+
         if best_value:
             self.logger.info(f"Selected {options_field}: {best_value} using {best_source}")
-        
+
         return best_value
 
     def _confidence_weighted(

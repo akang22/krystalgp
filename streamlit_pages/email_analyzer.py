@@ -151,22 +151,22 @@ def display_parser_results(results):
             
             # Format EBITDA with options count
             ebitda_str = f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "Not found"
-            if opp.ebitda_options:
+            if hasattr(opp, 'ebitda_options') and opp.ebitda_options:
                 ebitda_str += f" ({len(opp.ebitda_options)} options)"
             
             # Format location with options count
             location_str = opp.hq_location or "Not found"
-            if opp.location_options:
+            if hasattr(opp, 'location_options') and opp.location_options:
                 location_str += f" ({len(opp.location_options)} options)"
             
             # Format company with options count
             company_str = opp.company_name or "Not found"
-            if opp.company_options:
+            if hasattr(opp, 'company_options') and opp.company_options:
                 company_str += f" ({len(opp.company_options)} options)"
             
             # Format sector with options count
             sector_str = opp.sector or "Not found"
-            if opp.sector_options:
+            if hasattr(opp, 'sector_options') and opp.sector_options:
                 sector_str += f" ({len(opp.sector_options)} options)"
             
             comparison_data.append(
@@ -348,7 +348,7 @@ def display_detailed_results(results):
                 st.write("**Extraction Source:**", result.extraction_source)
 
             # Show multiple options with confidence scores
-            if opp.ebitda_options:
+            if hasattr(opp, 'ebitda_options') and opp.ebitda_options:
                 st.markdown("**💡 EBITDA Options (All Candidates):**")
                 ebitda_df = []
                 for opt in sorted(opp.ebitda_options, key=lambda x: x.confidence, reverse=True):
@@ -363,7 +363,7 @@ def display_detailed_results(results):
                 if ebitda_df:
                     st.dataframe(ebitda_df, width="stretch", hide_index=True)
 
-            if opp.location_options:
+            if hasattr(opp, 'location_options') and opp.location_options:
                 st.markdown("**💡 Location Options (All Candidates):**")
                 loc_df = []
                 for opt in sorted(opp.location_options, key=lambda x: x.confidence, reverse=True):
@@ -378,7 +378,7 @@ def display_detailed_results(results):
                 if loc_df:
                     st.dataframe(loc_df, width="stretch", hide_index=True)
 
-            if opp.company_options:
+            if hasattr(opp, 'company_options') and opp.company_options:
                 st.markdown("**💡 Company Options (All Candidates):**")
                 comp_df = []
                 for opt in sorted(opp.company_options, key=lambda x: x.confidence, reverse=True):
@@ -393,7 +393,7 @@ def display_detailed_results(results):
                 if comp_df:
                     st.dataframe(comp_df, width="stretch", hide_index=True)
 
-            if opp.sector_options:
+            if hasattr(opp, 'sector_options') and opp.sector_options:
                 st.markdown("**💡 Sector Options (All Candidates):**")
                 sector_df = []
                 for opt in sorted(opp.sector_options, key=lambda x: x.confidence, reverse=True):
