@@ -423,7 +423,7 @@ def display_pdf_attachment(attachment):
 
         # Display first 3 pages
         for i, img in enumerate(images[:3]):
-            st.image(img, caption=f"Page {i+1}", use_column_width=True)
+            st.image(img, caption=f"Page {i+1}", use_container_width=True)
 
         if len(images) > 3:
             st.info(f"Showing first 3 pages of {len(images)} total pages")
@@ -437,7 +437,7 @@ def display_image_attachment(attachment):
     try:
         image = Image.open(io.BytesIO(attachment.content))
         st.markdown(f"**{attachment.filename}** ({attachment.size_bytes / 1024:.1f} KB)")
-        st.image(image, use_column_width=True)
+        st.image(image, use_container_width=True)
     except Exception as e:
         st.error(f"Failed to display image: {e}")
 
