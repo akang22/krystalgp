@@ -666,10 +666,6 @@ def main():
 
     st.divider()
 
-        status_text.text("✅ Parsing complete!")
-        progress_bar.empty()
-        status_text.empty()
-
     # Display results
     display_parser_results(results)
 
