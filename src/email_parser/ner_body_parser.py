@@ -228,8 +228,9 @@ class NERBodyParser(BaseParser):
         Returns:
             InvestmentOpportunity with extracted fields
         """
-        # Extract source domain from sender
-        source_domain = self.extract_domain(email_data.sender) if email_data.sender else None
+        # Extract source domain from original sender (for forwards)
+        original_sender = self.extract_original_sender(email_data)
+        source_domain = self.extract_domain(original_sender) if original_sender else None
         
         # Identify recipient
         recipient = email_data.recipients[0] if email_data.recipients else None

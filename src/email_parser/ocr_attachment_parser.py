@@ -317,7 +317,8 @@ Return only the JSON object:"""
             InvestmentOpportunity with extracted fields
         """
         # Extract source and recipient from email metadata
-        source_domain = self.extract_domain(email_data.sender) if email_data.sender else None
+        original_sender = self.extract_original_sender(email_data)
+        source_domain = self.extract_domain(original_sender) if original_sender else None
         recipient = email_data.recipients[0] if email_data.recipients else None
         
         # Process all PDF and image attachments

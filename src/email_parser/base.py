@@ -270,6 +270,60 @@ class BaseParser(ABC):
 
         return recipients
 
+    def extract_original_sender(self, email_data: EmailData) -> Optional[str]:
+        """Extract original sender from forwarded email.
+        
+        For forwarded emails, parses the body to find the original "From:" line.
+        Falls back to immediate sender if not a forward.
+        
+        Args:
+            email_data: Email data object
+            
+        Returns:
+            Original sender email address or immediate sender
+        """
+        import re
+        
+        # Check if this is a forwarded email
+        body = email_data.body_plain or ""
+        subject = email_data.subject or ""
+        
+        # Look for forward indicators
+        is_forward = (
+            subject.upper().startswith("FW:") or 
+            subject.upper().startswith("FWD:") or
+            "-----Original Message-----" in body or
+            "---------- Forwarded message ----------" in body
+        )
+        
+        if is_forward:
+            # Try to find original "From:" line in body
+            from_patterns = [
+                r'From:\s*["\']?([^"\'\n<]+)<([^>]+)>',  # From: Name <email>
+                r'From:\s*<?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>?',  # From: email
+            ]
+            
+            for pattern in from_patterns:
+                match = re.search(pattern, body, re.MULTILINE | re.IGNORECASE)
+                if match:
+                    # Extract email from match
+                    if len(match.groups()) >= 2:
+                        # Has name and email
+                        original_email = match.group(2).strip()
+                    else:
+                        # Just email
+                        original_email = match.group(1).strip()
+                    
+                    # Validate it's not a Krystal GP email
+                    if original_email and "@" in original_email:
+                        domain = original_email.split("@")[1].lower()
+                        if "krystal" not in domain:
+                            self.logger.info(f"Found original sender in forward: {original_email}")
+                            return original_email
+        
+        # Fall back to immediate sender
+        return email_data.sender
+
     def extract_domain(self, email: str) -> Optional[str]:
         """Extract domain from email address.
 
