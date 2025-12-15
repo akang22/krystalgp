@@ -268,8 +268,18 @@ Return only the JSON object, no additional text or explanation."""
             elif "business_description" in extracted_data:
                 description = extracted_data.get("business_description", "").strip() or None
 
+            # Enforce 2-5 word limit by truncating if needed
             if description:
-                self.logger.info(f"✓ Extracted description: {description}")
+                words = description.split()
+                word_count = len(words)
+                if word_count > 5:
+                    # Truncate to first 5 words
+                    description = " ".join(words[:5])
+                    self.logger.warning(f"Description exceeded 5 words ({word_count} words), truncated to: {description}")
+                elif word_count < 2:
+                    # If less than 2 words, try to expand or use fallback
+                    self.logger.warning(f"Description too short ({word_count} words): {description}")
+                self.logger.info(f"✓ Extracted description ({word_count} words): {description}")
             else:
                 self.logger.warning("⚠️ No description found in LLM response")
                 self.logger.warning(f"Available keys in response: {list(extracted_data.keys())}")
