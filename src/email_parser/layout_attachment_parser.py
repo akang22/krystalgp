@@ -24,6 +24,7 @@ from email_parser.base import (
     EmailData,
     InvestmentOpportunity,
     ParserResult,
+    VALID_SECTORS,
 )
 
 # Load environment variables from .env file
@@ -324,7 +325,13 @@ Return only the JSON object, no additional text."""
             for key, value in data.items():
                 if not merged_data.get(key) and value:
                     merged_data[key] = value
-        
+
+        # Validate and normalize sector
+        sector = merged_data.get('sector', '').strip() if merged_data.get('sector') else None
+        if sector and sector not in VALID_SECTORS:
+            self.logger.warning(f"Invalid sector '{sector}' from Layout parser, defaulting to 'Other'")
+            sector = "Other"
+
         # Create opportunity
         opportunity = InvestmentOpportunity(
             source_domain=source_domain,
@@ -333,7 +340,7 @@ Return only the JSON object, no additional text."""
             ebitda_millions=merged_data.get('ebitda_millions'),
             date=email_data.date,
             company_name=merged_data.get('company_name'),
-            sector=merged_data.get('sector'),
+            sector=sector,
             raw_ebitda_text=merged_data.get('raw_ebitda_text'),
         )
         

@@ -26,6 +26,7 @@ from email_parser.base import (
     EmailData,
     InvestmentOpportunity,
     ParserResult,
+    VALID_SECTORS,
 )
 
 # Load environment variables from .env file
@@ -501,6 +502,12 @@ Return only the JSON object:"""
         # Extract structured data using LLM
         extracted_data = self._extract_with_llm(combined_text, email_data.date)
 
+        # Validate and normalize sector
+        sector = extracted_data.get("sector", "").strip() if extracted_data.get("sector") else None
+        if sector and sector not in VALID_SECTORS:
+            self.logger.warning(f"Invalid sector '{sector}' from OCR parser, defaulting to 'Other'")
+            sector = "Other"
+
         # Create opportunity
         opportunity = InvestmentOpportunity(
             source_domain=source_domain,
@@ -509,7 +516,7 @@ Return only the JSON object:"""
             ebitda_millions=extracted_data.get("ebitda_millions"),
             date=email_data.date,
             company_name=extracted_data.get("company_name"),
-            sector=extracted_data.get("sector"),
+            sector=sector,
             raw_ebitda_text=extracted_data.get("raw_ebitda_text"),
             bounding_boxes=all_bounding_boxes,
         )

@@ -431,6 +431,12 @@ class EnsembleParser(BaseParser):
         best_location = self._select_best_field(results, "location_options", "hq_location")
         best_sector = self._select_best_field(results, "sector_options", "sector")
         best_company = self._select_best_field(results, "company_options", "company_name")
+        
+        # Validate sector - must be in VALID_SECTORS
+        from email_parser.base import VALID_SECTORS
+        if best_sector and best_sector not in VALID_SECTORS:
+            self.logger.warning(f"Invalid sector '{best_sector}' from ensemble, defaulting to 'Other'")
+            best_sector = "Other"
 
         # Get description from LLM body parser first, then fallback to any available
         description = None

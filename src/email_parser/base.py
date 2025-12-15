@@ -8,10 +8,26 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import extract_msg
 from pydantic import BaseModel, Field, field_validator
+
+# Valid sector categories - must match exactly
+VALID_SECTORS: Set[str] = {
+    "Wholesale",
+    "Transportation Services",
+    "Transportation Products",
+    "Retail",
+    "Other",
+    "Industrial Products",
+    "Healthcare",
+    "Electronics",
+    "Consumer Services",
+    "Business Services",
+    "Building Products",
+    "Agriculture / Forestry",
+}
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

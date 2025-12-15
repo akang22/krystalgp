@@ -19,6 +19,7 @@ from email_parser.base import (
     FieldOption,
     InvestmentOpportunity,
     ParserResult,
+    VALID_SECTORS,
 )
 
 # Load environment variables from .env file
@@ -332,21 +333,7 @@ Return only the JSON object, no additional text or explanation."""
 
             # Sector is now a single string value, not an array
             # Handle both old format (sector_options array) and new format (sector string)
-            # Valid sectors must match exactly from this list
-            valid_sectors = {
-                "Wholesale",
-                "Transportation Services",
-                "Transportation Products",
-                "Retail",
-                "Other",
-                "Industrial Products",
-                "Healthcare",
-                "Electronics",
-                "Consumer Services",
-                "Business Services",
-                "Building Products",
-                "Agriculture / Forestry",
-            }
+            # Valid sectors must match exactly from VALID_SECTORS
 
             best_sector = None
             sector_options = []
@@ -354,7 +341,7 @@ Return only the JSON object, no additional text or explanation."""
             # Check for new format (single sector string)
             if "sector" in extracted_data:
                 sector_value = extracted_data.get("sector", "").strip()
-                if sector_value in valid_sectors:
+                if sector_value in VALID_SECTORS:
                     best_sector = sector_value
                 else:
                     # If not valid, default to "Other"
@@ -372,7 +359,7 @@ Return only the JSON object, no additional text or explanation."""
                 if sector_options:
                     # Find first valid sector category
                     for opt in sorted(sector_options, key=lambda x: x.confidence, reverse=True):
-                        if opt.value in valid_sectors:
+                        if opt.value in VALID_SECTORS:
                             best_sector = opt.value
                             break
                     # If no valid category found, default to "Other"
