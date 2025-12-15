@@ -66,20 +66,65 @@ class OCRAttachmentParser(BaseParser):
         self.model = model
         self.temperature = temperature
         
-        # Configure tesseract path
+        # Configure tesseract path and verify installation
+        import shutil
+        import platform
+        
+        tesseract_found = False
+        
         if tesseract_cmd:
-            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+            if os.path.exists(tesseract_cmd) or shutil.which(tesseract_cmd):
+                pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+                tesseract_found = True
+                self.logger.info(f"Using tesseract at: {tesseract_cmd}")
+            else:
+                self.logger.warning(f"Specified tesseract path not found: {tesseract_cmd}")
         elif os.getenv('TESSERACT_CMD'):
-            pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_CMD')
+            tesseract_env = os.getenv('TESSERACT_CMD')
+            if os.path.exists(tesseract_env) or shutil.which(tesseract_env):
+                pytesseract.pytesseract.tesseract_cmd = tesseract_env
+                tesseract_found = True
+                self.logger.info(f"Using tesseract from TESSERACT_CMD: {tesseract_env}")
+            else:
+                self.logger.warning(f"TESSERACT_CMD path not found: {tesseract_env}")
         else:
-            # Try common tesseract locations
-            import shutil
+            # Try to find tesseract in PATH
             tesseract_path = shutil.which('tesseract')
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                tesseract_found = True
                 self.logger.info(f"Found tesseract at: {tesseract_path}")
-            else:
-                self.logger.warning("Tesseract not found in PATH. OCR may not work.")
+        
+        # Verify tesseract is actually working
+        if tesseract_found:
+            try:
+                # Test tesseract by getting version
+                pytesseract.get_tesseract_version()
+                self.logger.info("Tesseract verified and working")
+            except Exception as e:
+                self.logger.error(f"Tesseract found but not working: {e}")
+                tesseract_found = False
+        
+        if not tesseract_found:
+            system = platform.system()
+            install_instructions = {
+                'Darwin': "brew install tesseract",
+                'Linux': "sudo apt-get install tesseract-ocr  # or: sudo yum install tesseract",
+                'Windows': "Download from https://github.com/UB-Mannheim/tesseract/wiki"
+            }
+            install_cmd = install_instructions.get(system, "Install tesseract-ocr package")
+            
+            error_msg = (
+                f"Tesseract OCR is not installed or not in PATH.\n\n"
+                f"To install Tesseract:\n"
+                f"  {system}: {install_cmd}\n\n"
+                f"After installation, verify with: tesseract --version\n\n"
+                f"Alternatively, set the path manually:\n"
+                f"  - Set TESSERACT_CMD environment variable\n"
+                f"  - Or pass tesseract_cmd parameter to OCRAttachmentParser()\n"
+                f"  - Or add tesseract to your system PATH"
+            )
+            raise RuntimeError(error_msg)
         
         self.logger.info(f"Initialized OCR parser with model: {model}")
     
@@ -143,7 +188,21 @@ class OCRAttachmentParser(BaseParser):
         """
         try:
             # Extract text
-            text = pytesseract.image_to_string(image)
+            try:
+                text = pytesseract.image_to_string(image)
+            except pytesseract.TesseractNotFoundError:
+                error_msg = (
+                    "Tesseract OCR is not installed or not in PATH.\n\n"
+                    "To install Tesseract:\n"
+                    "  macOS: brew install tesseract\n"
+                    "  Linux: sudo apt-get install tesseract-ocr\n"
+                    "  Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki\n\n"
+                    "After installation, verify with: tesseract --version\n\n"
+                    "Alternatively, set the path manually:\n"
+                    "  - Set TESSERACT_CMD environment variable\n"
+                    "  - Or pass tesseract_cmd parameter to OCRAttachmentParser()"
+                )
+                raise RuntimeError(error_msg) from None
             
             # Extract bounding boxes with OCR data
             ocr_data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
