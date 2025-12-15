@@ -27,7 +27,6 @@ from email_parser.ensemble_parser import EnsembleParser
 from email_parser.layout_attachment_parser import LayoutLLMParser
 from email_parser.llm_body_parser import LLMBodyParser
 from email_parser.ocr_attachment_parser import OCRAttachmentParser
-from email_parser.ocr_ner_parser import OCRNERParser
 
 # Paths
 WORKSPACE = Path(__file__).parent.parent
@@ -51,21 +50,13 @@ def get_parsers():
         st.warning("OCR + LLM parser not available (set OPENAI_API_KEY)")
 
     try:
-        with st.spinner(
-            "Loading OCR + NER parser (may take ~30s on first run to download spaCy model)..."
-        ):
-            parsers["OCR + NER"] = OCRNERParser()
-    except Exception as e:
-        st.warning(f"⚠️ OCR + NER parser not available: {str(e)[:200]}")
-
-    try:
         parsers["Layout Vision"] = LayoutLLMParser()
     except Exception as e:
         st.warning("Layout Vision parser not available (set OPENAI_API_KEY)")
 
     try:
         parsers["Final Results"] = EnsembleParser(
-            use_llm=True, use_ner=True, use_vision=True, use_ocr=False, results_csv_path=RESULTS_CSV
+            use_llm=True, use_vision=True, use_ocr=False, results_csv_path=RESULTS_CSV
         )
     except Exception as e:
         st.warning(f"Final Results parser not available: {e}")
@@ -206,10 +197,8 @@ def display_confidence_calculation(results):
 
     # Define weights
     parser_weights = {
-        "NER Body": 0.7,
         "LLM Body": 1.0,
         "OCR + LLM": 0.5,
-        "OCR + NER": 0.6,
         "Layout Vision": 0.9,
     }
 

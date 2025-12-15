@@ -26,7 +26,6 @@ if hasattr(st, 'secrets'):
 
 from email_parser.llm_body_parser import LLMBodyParser
 from email_parser.ocr_attachment_parser import OCRAttachmentParser
-from email_parser.ocr_ner_parser import OCRNERParser
 from email_parser.layout_attachment_parser import LayoutLLMParser
 from email_parser.ensemble_parser import EnsembleParser
 from email_parser.utils import fuzzy_match_ebitda
