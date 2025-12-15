@@ -132,21 +132,24 @@ FOR COMPANY:
 - Check body for official company names
 - Confidence: subject line (0.95), official name (0.9), variations (0.6)
 
-FOR SECTOR:
-- Use EXACTLY ONE of these sector categories (single word or two-word phrase):
-  - Retail
-  - Consumer Services
-  - Building Products
-  - Transportation Services
-  - Healthcare
-  - Industrial Products
-  - Business Services
+FOR SECTOR (CRITICAL - MUST USE EXACT VALUES):
+- **MANDATORY**: You MUST use EXACTLY ONE of these sector categories. Use the EXACT spelling and capitalization shown below:
   - Wholesale
-  - Electronics
+  - Transportation Services
   - Transportation Products
-  - Other (use only if none of the above fit)
+  - Retail
+  - Other
+  - Industrial Products
+  - Healthcare
+  - Electronics
+  - Consumer Services
+  - Business Services
+  - Building Products
+  - Agriculture / Forestry
+- **STRICT RULE**: Return ONLY one of these exact values. Do NOT create variations, abbreviations, or new categories.
 - Return a single sector string value (not an array)
-- Match the company's primary business to the closest category
+- Match the company's primary business to the closest category from this list
+- If none fit exactly, use "Other"
 
 FOR DESCRIPTION (REQUIRED - MUST BE INCLUDED):
 - **CRITICAL**: This field is REQUIRED. Generate EXACTLY 2-5 words from email body (NOT subject)
@@ -329,18 +332,20 @@ Return only the JSON object, no additional text or explanation."""
 
             # Sector is now a single string value, not an array
             # Handle both old format (sector_options array) and new format (sector string)
+            # Valid sectors must match exactly from this list
             valid_sectors = {
-                "Retail",
-                "Consumer Services",
-                "Building Products",
-                "Transportation Services",
-                "Healthcare",
-                "Industrial Products",
-                "Business Services",
                 "Wholesale",
-                "Electronics",
+                "Transportation Services",
                 "Transportation Products",
+                "Retail",
                 "Other",
+                "Industrial Products",
+                "Healthcare",
+                "Electronics",
+                "Consumer Services",
+                "Business Services",
+                "Building Products",
+                "Agriculture / Forestry",
             }
 
             best_sector = None

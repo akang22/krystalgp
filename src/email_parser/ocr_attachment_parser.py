@@ -397,6 +397,24 @@ FOR COMPANY:
 - Check document header/title
 - Look for project code name or official company name
 
+FOR SECTOR (CRITICAL - MUST USE EXACT VALUES):
+- **MANDATORY**: You MUST use EXACTLY ONE of these sector categories. Use the EXACT spelling and capitalization shown below:
+  - Wholesale
+  - Transportation Services
+  - Transportation Products
+  - Retail
+  - Other
+  - Industrial Products
+  - Healthcare
+  - Electronics
+  - Consumer Services
+  - Business Services
+  - Building Products
+  - Agriculture / Forestry
+- **STRICT RULE**: Return ONLY one of these exact values. Do NOT create variations, abbreviations, or new categories.
+- Match the company's primary business to the closest category from this list
+- If none fit exactly, use "Other"
+
 Return null for fields not found and ensure valid JSON format
 
 OCR TEXT:
