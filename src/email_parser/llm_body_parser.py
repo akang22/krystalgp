@@ -89,7 +89,7 @@ Extract the following fields from the email below. For each field, provide ALL p
 Return ONLY a valid JSON object with these exact fields:
 
 {{
-  "description": "Brief 1-2 sentence business description (e.g., 'Leading Canadian Footwear Brand' or 'Regional Airline servicing small towns in BC')",
+  "description": "Brief 1-2 sentence business description based on email body content. Examples: 'Leading Canadian Footwear Brand', 'Regional Airline servicing small towns in BC', 'QSR Portfolio with multiple franchise locations'. REQUIRED FIELD - always provide a description.",
   "ebitda_options": [
     {{"value": 5.2, "confidence": 0.95, "source": "email body", "raw_text": "LTM EBITDA of $5.2M"}},
     {{"value": 4.5, "confidence": 0.7, "source": "subject line", "raw_text": "~$4.5M EBITDA"}}
