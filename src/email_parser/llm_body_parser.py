@@ -230,6 +230,11 @@ Return only the JSON object, no additional text or explanation."""
 
             # Extract description
             description = extracted_data.get("description", "").strip() or None
+            if description:
+                self.logger.info(f"Extracted description: {description[:100]}")
+            else:
+                self.logger.warning("No description found in LLM response")
+                self.logger.debug(f"LLM response keys: {list(extracted_data.keys())}")
 
             # Parse options
             ebitda_options = []
