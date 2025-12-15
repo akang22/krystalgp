@@ -148,18 +148,39 @@ def calculate_investment_criteria_fit(hq_location: Optional[str], ebitda: Option
     if not hq_location or not ebitda:
         return "No"
 
+    # Hardcoded list of 25 populous cities in BC and Alberta
+    # BC cities (15): Vancouver, Victoria, Surrey, Burnaby, Richmond, Coquitlam, 
+    # Langley, Abbotsford, North Vancouver, West Vancouver, Kelowna, Kamloops, 
+    # Nanaimo, Prince George, Chilliwack
+    # Alberta cities (10): Calgary, Edmonton, Red Deer, Lethbridge, St. Albert, 
+    # Medicine Hat, Grande Prairie, Airdrie, Spruce Grove, Fort McMurray
+    western_canada_cities = [
+        # BC cities
+        "vancouver", "victoria", "surrey", "burnaby", "richmond",
+        "coquitlam", "langley", "abbotsford", "north vancouver", "west vancouver",
+        "kelowna", "kamloops", "nanaimo", "prince george", "chilliwack",
+        # Alberta cities
+        "calgary", "edmonton", "red deer", "lethbridge", "st. albert",
+        "medicine hat", "grande prairie", "airdrie", "spruce grove", "fort mcmurray",
+    ]
+
     hq_lower = hq_location.lower()
 
     # Check if HQ is in Western Canada (BC or Alberta)
+    # First check for province abbreviations/names
     is_western_canada = (
         "bc" in hq_lower
         or "british columbia" in hq_lower
         or "alberta" in hq_lower
         or "ab" in hq_lower
-        or "vancouver" in hq_lower
-        or "calgary" in hq_lower
-        or "edmonton" in hq_lower
     )
+    
+    # Check for major cities if province not found
+    if not is_western_canada:
+        for city in western_canada_cities:
+            if city in hq_lower:
+                is_western_canada = True
+                break
 
     # Check if EBITDA is between 2-8M
     ebitda_in_range = 2.0 <= ebitda <= 8.0
