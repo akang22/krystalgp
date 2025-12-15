@@ -520,42 +520,44 @@ def display_attachments_visual(email_data):
                     st.warning("Preview not available for this file type")
 
 
-def calculate_investment_criteria_fit(hq_location: Optional[str], ebitda_millions: Optional[float]) -> str:
+def calculate_investment_criteria_fit(
+    hq_location: Optional[str], ebitda_millions: Optional[float]
+) -> str:
     """Calculate if investment opportunity fits criteria.
-    
+
     Criteria: HQ = Western Canada (BC or Alberta) && EBITDA between 2-8M
-    
+
     Args:
         hq_location: Headquarters location
         ebitda_millions: EBITDA in millions
-        
+
     Returns:
         "Yes" if criteria met, "No" otherwise
     """
     if not hq_location or ebitda_millions is None:
         return "No"
-    
+
     # Check if location is in Western Canada (BC or Alberta)
     location_upper = hq_location.upper()
     is_western_canada = (
-        "BC" in location_upper or 
-        "BRITISH COLUMBIA" in location_upper or
-        "ALBERTA" in location_upper or
-        "AB" in location_upper
+        "BC" in location_upper
+        or "BRITISH COLUMBIA" in location_upper
+        or "ALBERTA" in location_upper
+        or "AB" in location_upper
     )
-    
+
     # Check if EBITDA is between 2-8M
     ebitda_in_range = 2.0 <= ebitda_millions <= 8.0
-    
+
     return "Yes" if (is_western_canada and ebitda_in_range) else "No"
 
 
 def get_status_color(status: str) -> str:
     """Get color for status based on investment criteria fit.
-    
+
     Args:
         status: "Yes" or "No"
-        
+
     Returns:
         Color name for Streamlit
     """
@@ -564,7 +566,7 @@ def get_status_color(status: str) -> str:
 
 def display_summary_table(email_data, results: dict):
     """Display summary table at the top with key investment opportunity data.
-    
+
     Args:
         email_data: EmailData object
         results: Dictionary of parser results
@@ -577,26 +579,26 @@ def display_summary_table(email_data, results: dict):
             if result and result.opportunity:
                 final_result = result
                 break
-    
+
     if not final_result or not final_result.opportunity:
         st.warning("No parser results available for summary table")
         return
-    
+
     opp = final_result.opportunity
-    
+
     # Extract data
     date_received = email_data.date.strftime("%Y-%m-%d") if email_data.date else "N/A"
     company_name = opp.company_name or "N/A"
     sector = opp.sector or "N/A"
-    description = email_data.subject or "N/A"  # Using subject as description
+    description = opp.description or email_data.subject or "N/A"  # Use LLM-generated description, fallback to subject
     ebitda = f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions is not None else "N/A"
     hq_location = opp.hq_location or "N/A"
     source = opp.source_domain or "N/A"
-    
+
     # Calculate investment criteria fit
     investment_fit = calculate_investment_criteria_fit(opp.hq_location, opp.ebitda_millions)
     status_color = get_status_color(investment_fit)
-    
+
     # Create table data
     table_data = {
         "Date Received": [date_received],
@@ -609,27 +611,24 @@ def display_summary_table(email_data, results: dict):
         "Status": [investment_fit],
         "Investment Criteria Fit?": [investment_fit],
     }
-    
+
     df = pd.DataFrame(table_data)
-    
+
     # Display table with styling
     st.subheader("📊 Investment Opportunity Summary")
-    
+
     # Style the dataframe with color coding for Status and Investment Criteria Fit columns
     def style_status(val):
         if val == "Yes":
             return "background-color: #90EE90; color: #000000"  # Light green
         else:
             return "background-color: #FFB6C1; color: #000000"  # Light red
-    
+
     # Apply styling to Status and Investment Criteria Fit columns
-    styled_df = df.style.applymap(
-        style_status, 
-        subset=["Status", "Investment Criteria Fit?"]
-    )
-    
+    styled_df = df.style.applymap(style_status, subset=["Status", "Investment Criteria Fit?"])
+
     st.dataframe(styled_df, width="stretch", hide_index=True, use_container_width=True)
-    
+
     st.divider()
 
 

@@ -81,6 +81,7 @@ Extract the following fields from the email below. For each field, provide ALL p
 Return ONLY a valid JSON object with these exact fields:
 
 {{
+  "description": "Brief 1-2 sentence business description (e.g., 'Leading Canadian Footwear Brand' or 'Regional Airline servicing small towns in BC')",
   "ebitda_options": [
     {{"value": 5.2, "confidence": 0.95, "source": "email body", "raw_text": "LTM EBITDA of $5.2M"}},
     {{"value": 4.5, "confidence": 0.7, "source": "subject line", "raw_text": "~$4.5M EBITDA"}}
@@ -128,6 +129,13 @@ FOR SECTOR:
 - Provide up to 3 sector options (most specific to least specific)
 - Be specific: "Quick Service Restaurants" not just "Food"
 - Confidence: highly specific (0.95), general category (0.7), implied (0.5)
+
+FOR DESCRIPTION:
+- Generate a concise 1-2 sentence business description based on the email body
+- Focus on what the company does, its market position, or key characteristics
+- Examples: "Leading Canadian Footwear Brand", "Regional Airline servicing small towns in BC", "QSR Portfolio with multiple franchise locations"
+- Be specific and informative, not generic
+- Extract from the main email content, not signatures
 
 GENERAL:
 - **DO NOT extract from email signatures**: Ignore any information found in email signatures (contact details, disclaimers, "Sent from" messages, etc.)
@@ -209,6 +217,9 @@ Return only the JSON object, no additional text or explanation."""
             # Parse JSON response
             extracted_data = self._parse_llm_response(response_text)
             
+            # Extract description
+            description = extracted_data.get('description', '').strip() or None
+            
             # Parse options
             ebitda_options = []
             location_options = []
@@ -262,6 +273,7 @@ Return only the JSON object, no additional text or explanation."""
                 date=email_data.date,
                 company_name=best_company.value if best_company else None,
                 sector=best_sector.value if best_sector else None,
+                description=description,
                 raw_ebitda_text=best_ebitda.raw_text if best_ebitda else None,
                 ebitda_options=ebitda_options,
                 location_options=location_options,

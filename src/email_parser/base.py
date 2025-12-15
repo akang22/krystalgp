@@ -85,6 +85,7 @@ class InvestmentOpportunity(BaseModel):
     # Additional fields for context
     company_name: Optional[str] = None
     sector: Optional[str] = None
+    description: Optional[str] = None  # Brief business description generated from email body
     raw_ebitda_text: Optional[str] = None
 
     # Multiple options with confidence scores
