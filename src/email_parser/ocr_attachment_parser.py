@@ -105,7 +105,7 @@ class OCRAttachmentParser(BaseParser):
                 # This helps when Streamlit runs with a different PATH than the terminal
                 system = platform.system()
                 common_paths = []
-                
+
                 if system == "Darwin":  # macOS
                     common_paths = [
                         "/usr/local/bin/tesseract",  # Homebrew (Intel)
@@ -122,7 +122,7 @@ class OCRAttachmentParser(BaseParser):
                         "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
                         "C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe",
                     ]
-                
+
                 self.logger.debug(f"Checking common paths: {common_paths}")
                 for path in common_paths:
                     exists = os.path.exists(path)
@@ -130,13 +130,17 @@ class OCRAttachmentParser(BaseParser):
                         # Resolve symlinks to actual binary (important for Homebrew)
                         real_path = os.path.realpath(path)
                         executable = os.access(real_path, os.X_OK)
-                        self.logger.debug(f"  {path}: exists={exists}, realpath={real_path}, executable={executable}")
+                        self.logger.debug(
+                            f"  {path}: exists={exists}, realpath={real_path}, executable={executable}"
+                        )
                         if executable:
                             # Use the original path (symlink) as pytesseract can handle it
                             # But verify the real path is executable
                             tesseract_path = path
                             tesseract_found = True
-                            self.logger.info(f"Found tesseract at common path: {path} (-> {real_path})")
+                            self.logger.info(
+                                f"Found tesseract at common path: {path} (-> {real_path})"
+                            )
                             break
                     else:
                         self.logger.debug(f"  {path}: does not exist")

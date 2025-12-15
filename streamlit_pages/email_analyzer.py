@@ -519,6 +519,114 @@ def display_attachments_visual(email_data):
                     st.warning("Preview not available for this file type")
 
 
+def calculate_investment_criteria_fit(hq_location: Optional[str], ebitda_millions: Optional[float]) -> str:
+    """Calculate if investment opportunity fits criteria.
+    
+    Criteria: HQ = Western Canada (BC or Alberta) && EBITDA between 2-8M
+    
+    Args:
+        hq_location: Headquarters location
+        ebitda_millions: EBITDA in millions
+        
+    Returns:
+        "Yes" if criteria met, "No" otherwise
+    """
+    if not hq_location or ebitda_millions is None:
+        return "No"
+    
+    # Check if location is in Western Canada (BC or Alberta)
+    location_upper = hq_location.upper()
+    is_western_canada = (
+        "BC" in location_upper or 
+        "BRITISH COLUMBIA" in location_upper or
+        "ALBERTA" in location_upper or
+        "AB" in location_upper
+    )
+    
+    # Check if EBITDA is between 2-8M
+    ebitda_in_range = 2.0 <= ebitda_millions <= 8.0
+    
+    return "Yes" if (is_western_canada and ebitda_in_range) else "No"
+
+
+def get_status_color(status: str) -> str:
+    """Get color for status based on investment criteria fit.
+    
+    Args:
+        status: "Yes" or "No"
+        
+    Returns:
+        Color name for Streamlit
+    """
+    return "green" if status == "Yes" else "red"
+
+
+def display_summary_table(email_data, results: dict):
+    """Display summary table at the top with key investment opportunity data.
+    
+    Args:
+        email_data: EmailData object
+        results: Dictionary of parser results
+    """
+    # Get Final Results if available, otherwise use first available result
+    final_result = results.get("Final Results")
+    if not final_result:
+        # Try to get any result
+        for parser_name, result in results.items():
+            if result and result.opportunity:
+                final_result = result
+                break
+    
+    if not final_result or not final_result.opportunity:
+        st.warning("No parser results available for summary table")
+        return
+    
+    opp = final_result.opportunity
+    
+    # Extract data
+    date_received = email_data.date.strftime("%Y-%m-%d") if email_data.date else "N/A"
+    company_name = opp.company_name or "N/A"
+    sector = opp.sector or "N/A"
+    description = email_data.subject or "N/A"  # Using subject as description
+    ebitda = f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions is not None else "N/A"
+    hq_location = opp.hq_location or "N/A"
+    source = opp.source_domain or "N/A"
+    
+    # Calculate investment criteria fit
+    investment_fit = calculate_investment_criteria_fit(opp.hq_location, opp.ebitda_millions)
+    status_color = get_status_color(investment_fit)
+    
+    # Create table data
+    table_data = {
+        "Date Received": [date_received],
+        "Company / Project Name": [company_name],
+        "Sector": [sector],
+        "Description": [description],
+        "LTM EBITDA ($M)": [ebitda],
+        "HQ Location": [hq_location],
+        "Source": [source],
+        "Status": [investment_fit],
+        "Investment Criteria Fit?": [investment_fit],
+    }
+    
+    df = pd.DataFrame(table_data)
+    
+    # Display table with styling
+    st.subheader("📊 Investment Opportunity Summary")
+    
+    # Style the dataframe with color coding
+    def style_status(val):
+        if val == "Yes":
+            return "background-color: #90EE90"  # Light green
+        else:
+            return "background-color: #FFB6C1"  # Light red
+    
+    styled_df = df.style.applymap(style_status, subset=["Status", "Investment Criteria Fit?"])
+    st.dataframe(styled_df, width="stretch", hide_index=True)
+    
+    st.divider()
+
+
 def main():
     """Main Streamlit app."""
     # Get list of emails
