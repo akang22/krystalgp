@@ -75,6 +75,10 @@ class OCRAttachmentParser(BaseParser):
         tesseract_found = False
         tesseract_path = None
 
+        # Debug: Log PATH for troubleshooting
+        path_env = os.getenv("PATH", "")
+        self.logger.debug(f"Current PATH: {path_env[:200]}...")
+
         if tesseract_cmd:
             if os.path.exists(tesseract_cmd) or shutil.which(tesseract_cmd):
                 tesseract_path = tesseract_cmd
@@ -119,8 +123,12 @@ class OCRAttachmentParser(BaseParser):
                         "C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe",
                     ]
                 
+                self.logger.debug(f"Checking common paths: {common_paths}")
                 for path in common_paths:
-                    if os.path.exists(path) and os.access(path, os.X_OK):
+                    exists = os.path.exists(path)
+                    executable = os.access(path, os.X_OK) if exists else False
+                    self.logger.debug(f"  {path}: exists={exists}, executable={executable}")
+                    if exists and executable:
                         tesseract_path = path
                         tesseract_found = True
                         self.logger.info(f"Found tesseract at common path: {tesseract_path}")
@@ -129,6 +137,7 @@ class OCRAttachmentParser(BaseParser):
         # Set the tesseract command path if found
         if tesseract_found and tesseract_path:
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            self.logger.info(f"Set pytesseract.tesseract_cmd = {tesseract_path}")
 
         # Verify tesseract is actually working
         if tesseract_found:
@@ -136,9 +145,14 @@ class OCRAttachmentParser(BaseParser):
                 # Test tesseract by getting version
                 version = pytesseract.get_tesseract_version()
                 self.logger.info(f"Tesseract verified and working (version: {version})")
+            except pytesseract.TesseractNotFoundError as e:
+                self.logger.error(f"TesseractNotFoundError: {e}")
+                self.logger.error(f"Path was set to: {pytesseract.pytesseract.tesseract_cmd}")
+                tesseract_found = False
             except Exception as e:
                 self.logger.error(f"Tesseract found at {tesseract_path} but not working: {e}")
                 self.logger.error(f"Error type: {type(e).__name__}")
+                self.logger.error(f"Path was set to: {pytesseract.pytesseract.tesseract_cmd}")
                 tesseract_found = False
 
         if not tesseract_found:
