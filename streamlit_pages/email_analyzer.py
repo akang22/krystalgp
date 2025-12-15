@@ -46,8 +46,19 @@ def get_parsers():
 
     try:
         parsers["OCR + LLM"] = OCRAttachmentParser()
-    except Exception as e:
+    except ValueError as e:
+        # API key error
         st.warning("OCR + LLM parser not available (set OPENAI_API_KEY)")
+    except RuntimeError as e:
+        # Tesseract error
+        error_msg = str(e)
+        if "Tesseract" in error_msg:
+            st.error(f"⚠️ OCR + LLM parser not available: {error_msg}")
+        else:
+            st.warning(f"OCR + LLM parser not available: {error_msg}")
+    except Exception as e:
+        # Other errors
+        st.warning(f"OCR + LLM parser not available: {str(e)[:200]}")
 
     try:
         parsers["Layout Vision"] = LayoutLLMParser()
