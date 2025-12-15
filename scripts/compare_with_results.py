@@ -241,6 +241,8 @@ def main():
     mapping_df = None
     if MAPPING_CSV.exists():
         mapping_df = pd.read_csv(MAPPING_CSV)
+        # Strip column names to handle trailing spaces
+        mapping_df.columns = mapping_df.columns.str.strip()
         # Create a dictionary for quick lookup: email_filename -> project_name
         email_to_project = dict(zip(
             mapping_df["Email File"].str.strip(),
