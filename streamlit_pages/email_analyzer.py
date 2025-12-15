@@ -618,6 +618,21 @@ def calculate_investment_criteria_fit(
         or "AB" in location_upper
     )
     
+    # Check for regional terms indicating Western Canada
+    if not is_western_canada:
+        western_terms = [
+            "WEST COAST",
+            "WESTERN CANADA",
+            "WESTERN CANADIAN",
+            "BC-BASED",
+            "ALBERTA-BASED",
+            "PACIFIC COAST",  # BC is on the Pacific
+        ]
+        for term in western_terms:
+            if term in location_upper:
+                is_western_canada = True
+                break
+    
     # Check for major cities (case-insensitive)
     if not is_western_canada:
         for city in western_canada_cities:

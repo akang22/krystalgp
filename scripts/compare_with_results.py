@@ -175,6 +175,21 @@ def calculate_investment_criteria_fit(hq_location: Optional[str], ebitda: Option
         or "ab" in hq_lower
     )
     
+    # Check for regional terms indicating Western Canada
+    if not is_western_canada:
+        western_terms = [
+            "west coast",
+            "western canada",
+            "western canadian",
+            "bc-based",
+            "alberta-based",
+            "pacific coast",  # BC is on the Pacific
+        ]
+        for term in western_terms:
+            if term in hq_lower:
+                is_western_canada = True
+                break
+    
     # Check for major cities if province not found
     if not is_western_canada:
         for city in western_canada_cities:
