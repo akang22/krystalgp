@@ -13,7 +13,13 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import ValidationError
 
-from email_parser.base import BaseParser, EmailData, InvestmentOpportunity, ParserResult, FieldOption
+from email_parser.base import (
+    BaseParser,
+    EmailData,
+    FieldOption,
+    InvestmentOpportunity,
+    ParserResult,
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,11 +27,11 @@ load_dotenv()
 
 class LLMBodyParser(BaseParser):
     """Parser that uses OpenAI GPT-4 to extract data from email body text.
-    
+
     This parser sends the email body to GPT-4 with a structured prompt
     and JSON schema to extract investment opportunity fields.
     """
-    
+
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -34,7 +40,7 @@ class LLMBodyParser(BaseParser):
         max_tokens: int = 4096,
     ):
         """Initialize LLM body parser.
-        
+
         Args:
             api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
             model: OpenAI model to use
@@ -42,33 +48,35 @@ class LLMBodyParser(BaseParser):
             max_tokens: Maximum tokens in response
         """
         super().__init__(name="LLM-Body-Parser")
-        
-        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
+
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY env var or pass api_key.")
-        
+            raise ValueError(
+                "OpenAI API key is required. Set OPENAI_API_KEY env var or pass api_key."
+            )
+
         self.client = OpenAI(api_key=self.api_key)
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        
+
         self.logger.info(f"Initialized LLM parser with model: {model}")
-    
+
     def _build_extraction_prompt(self, email_data: EmailData) -> str:
         """Build prompt for GPT-4 to extract investment opportunity data.
-        
+
         Args:
             email_data: Email data to process
-            
+
         Returns:
             Formatted prompt string
         """
         # Use plain text body, fall back to HTML if needed
         body_text = email_data.body_plain or email_data.body_html or ""
-        
+
         # Get email year for context
         email_year = email_data.date.year if email_data.date else datetime.now().year
-        
+
         prompt = f"""You are an expert at extracting structured information from investment opportunity emails for a private equity firm focused on British Columbia (BC), Canada.
 
 **CONTEXT:**
@@ -153,117 +161,128 @@ EMAIL BODY:
 Return only the JSON object, no additional text or explanation."""
 
         return prompt
-    
+
     def _parse_llm_response(self, response_text: str) -> Dict[str, Any]:
         """Parse JSON response from LLM.
-        
+
         Args:
             response_text: Raw text response from LLM
-            
+
         Returns:
             Parsed JSON dict
-            
+
         Raises:
             json.JSONDecodeError: If response is not valid JSON
         """
         # Try to extract JSON from markdown code blocks if present
-        if '```json' in response_text:
-            start = response_text.find('```json') + 7
-            end = response_text.find('```', start)
+        if "```json" in response_text:
+            start = response_text.find("```json") + 7
+            end = response_text.find("```", start)
             response_text = response_text[start:end].strip()
-        elif '```' in response_text:
-            start = response_text.find('```') + 3
-            end = response_text.find('```', start)
+        elif "```" in response_text:
+            start = response_text.find("```") + 3
+            end = response_text.find("```", start)
             response_text = response_text[start:end].strip()
-        
+
         return json.loads(response_text)
-    
+
     def parse_data(self, email_data: EmailData) -> InvestmentOpportunity:
         """Parse email data using GPT-4 to extract investment opportunity.
-        
+
         Args:
             email_data: Extracted email data
-            
+
         Returns:
             InvestmentOpportunity with extracted fields
         """
         # Extract source domain from original sender (for forwards)
         original_sender = self.extract_original_sender(email_data)
         source_domain = self.extract_domain(original_sender) if original_sender else None
-        
+
         # Identify recipient
         recipient = email_data.recipients[0] if email_data.recipients else None
-        
+
         # Build prompt and call OpenAI
         try:
             prompt = self._build_extraction_prompt(email_data)
-            
+
             self.logger.debug(f"Calling OpenAI API with model: {self.model}")
-            
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a precise data extraction assistant. Return only valid JSON."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "You are a precise data extraction assistant. Return only valid JSON.",
+                    },
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
             )
-            
+
             # Extract response text
             response_text = response.choices[0].message.content
             self.logger.debug(f"LLM response: {response_text[:200]}...")
-            
+
             # Parse JSON response
             extracted_data = self._parse_llm_response(response_text)
-            
+
             # Extract description
-            description = extracted_data.get('description', '').strip() or None
-            
+            description = extracted_data.get("description", "").strip() or None
+
             # Parse options
             ebitda_options = []
             location_options = []
             company_options = []
             sector_options = []
-            
+
             # Convert ebitda_options and filter out signature sources
-            for opt in extracted_data.get('ebitda_options', []):
-                if isinstance(opt, dict) and 'value' in opt:
-                    source = opt.get('source', '').lower()
+            for opt in extracted_data.get("ebitda_options", []):
+                if isinstance(opt, dict) and "value" in opt:
+                    source = opt.get("source", "").lower()
                     # Filter out any results from signatures
-                    if 'signature' not in source:
+                    if "signature" not in source:
                         ebitda_options.append(FieldOption(**opt))
-            
+
             # Convert location_options and filter out signature sources
-            for opt in extracted_data.get('location_options', []):
-                if isinstance(opt, dict) and 'value' in opt:
-                    source = opt.get('source', '').lower()
+            for opt in extracted_data.get("location_options", []):
+                if isinstance(opt, dict) and "value" in opt:
+                    source = opt.get("source", "").lower()
                     # Filter out any results from signatures
-                    if 'signature' not in source:
+                    if "signature" not in source:
                         location_options.append(FieldOption(**opt))
-            
+
             # Convert company_options and filter out signature sources
-            for opt in extracted_data.get('company_options', []):
-                if isinstance(opt, dict) and 'value' in opt:
-                    source = opt.get('source', '').lower()
+            for opt in extracted_data.get("company_options", []):
+                if isinstance(opt, dict) and "value" in opt:
+                    source = opt.get("source", "").lower()
                     # Filter out any results from signatures
-                    if 'signature' not in source:
+                    if "signature" not in source:
                         company_options.append(FieldOption(**opt))
-            
+
             # Convert sector_options and filter out signature sources
-            for opt in extracted_data.get('sector_options', []):
-                if isinstance(opt, dict) and 'value' in opt:
-                    source = opt.get('source', '').lower()
+            for opt in extracted_data.get("sector_options", []):
+                if isinstance(opt, dict) and "value" in opt:
+                    source = opt.get("source", "").lower()
                     # Filter out any results from signatures
-                    if 'signature' not in source:
+                    if "signature" not in source:
                         sector_options.append(FieldOption(**opt))
-            
+
             # Use highest confidence options as primary values
-            best_ebitda = max(ebitda_options, key=lambda x: x.confidence) if ebitda_options else None
-            best_location = max(location_options, key=lambda x: x.confidence) if location_options else None
-            best_company = max(company_options, key=lambda x: x.confidence) if company_options else None
-            best_sector = max(sector_options, key=lambda x: x.confidence) if sector_options else None
-            
+            best_ebitda = (
+                max(ebitda_options, key=lambda x: x.confidence) if ebitda_options else None
+            )
+            best_location = (
+                max(location_options, key=lambda x: x.confidence) if location_options else None
+            )
+            best_company = (
+                max(company_options, key=lambda x: x.confidence) if company_options else None
+            )
+            best_sector = (
+                max(sector_options, key=lambda x: x.confidence) if sector_options else None
+            )
+
             # Create InvestmentOpportunity
             opportunity = InvestmentOpportunity(
                 source_domain=source_domain,
@@ -280,11 +299,13 @@ Return only the JSON object, no additional text or explanation."""
                 company_options=company_options,
                 sector_options=sector_options,
             )
-            
-            self.logger.info(f"Extracted: EBITDA=${opportunity.ebitda_millions}M, Location={opportunity.hq_location}")
-            
+
+            self.logger.info(
+                f"Extracted: EBITDA=${opportunity.ebitda_millions}M, Location={opportunity.hq_location}"
+            )
+
             return opportunity
-            
+
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse LLM JSON response: {e}")
             # Return partial data
@@ -293,7 +314,7 @@ Return only the JSON object, no additional text or explanation."""
                 recipient=recipient,
                 date=email_data.date,
             )
-        
+
         except Exception as e:
             self.logger.error(f"LLM parsing failed: {e}")
             # Return partial data
@@ -302,19 +323,18 @@ Return only the JSON object, no additional text or explanation."""
                 recipient=recipient,
                 date=email_data.date,
             )
-    
+
     def parse(self, msg_path) -> ParserResult:
         """Parse a .msg file using LLM-based extraction.
-        
+
         Overrides base method to set extraction_source correctly.
-        
+
         Args:
             msg_path: Path to the .msg file
-            
+
         Returns:
             ParserResult with extracted data
         """
         result = super().parse(msg_path)
         result.extraction_source = "body"
         return result
-

@@ -432,6 +432,13 @@ class EnsembleParser(BaseParser):
         best_sector = self._select_best_field(results, "sector_options", "sector")
         best_company = self._select_best_field(results, "company_options", "company_name")
 
+        # Get description from first available opportunity (prefer LLM body parser)
+        description = None
+        for opp in opportunities:
+            if hasattr(opp, "description") and opp.description:
+                description = opp.description
+                break
+        
         combined = InvestmentOpportunity(
             source_domain=next((o.source_domain for o in opportunities if o.source_domain), None),
             recipient=next((o.recipient for o in opportunities if o.recipient), None),
@@ -440,6 +447,7 @@ class EnsembleParser(BaseParser):
             date=next((o.date for o in opportunities if o.date), None),
             company_name=best_company,
             sector=best_sector,
+            description=description,
             raw_ebitda_text=f"[{tie_break_method}]",
         )
 

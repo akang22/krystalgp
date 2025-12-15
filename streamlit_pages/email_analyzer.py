@@ -590,7 +590,10 @@ def display_summary_table(email_data, results: dict):
     date_received = email_data.date.strftime("%Y-%m-%d") if email_data.date else "N/A"
     company_name = opp.company_name or "N/A"
     sector = opp.sector or "N/A"
-    description = opp.description or email_data.subject or "N/A"  # Use LLM-generated description, fallback to subject
+    # Use LLM-generated description, fallback to subject (with defensive check for old cached data)
+    description = (
+        getattr(opp, "description", None) or email_data.subject or "N/A"
+    )
     ebitda = f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions is not None else "N/A"
     hq_location = opp.hq_location or "N/A"
     source = opp.source_domain or "N/A"
