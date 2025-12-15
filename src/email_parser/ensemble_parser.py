@@ -432,13 +432,25 @@ class EnsembleParser(BaseParser):
         best_sector = self._select_best_field(results, "sector_options", "sector")
         best_company = self._select_best_field(results, "company_options", "company_name")
 
-        # Get description from first available opportunity (prefer LLM body parser)
+        # Get description from LLM body parser first, then fallback to any available
         description = None
-        for opp in opportunities:
-            if hasattr(opp, "description") and opp.description:
-                description = opp.description
-                break
+        # First try to get from LLM body parser results
+        for name, result in results:
+            if "LLM" in name.upper() and result and result.opportunity:
+                opp = result.opportunity
+                if hasattr(opp, "description") and opp.description:
+                    description = opp.description
+                    self.logger.info(f"Using description from {name}: {description}")
+                    break
         
+        # Fallback to any opportunity with description
+        if not description:
+            for opp in opportunities:
+                if hasattr(opp, "description") and opp.description:
+                    description = opp.description
+                    self.logger.info(f"Using description from fallback: {description}")
+                    break
+
         combined = InvestmentOpportunity(
             source_domain=next((o.source_domain for o in opportunities if o.source_domain), None),
             recipient=next((o.recipient for o in opportunities if o.recipient), None),
@@ -524,5 +536,4 @@ class EnsembleParser(BaseParser):
                     results.append(result)
 
         # Combine results
-        return self._combine_results(results, strategy="all")
         return self._combine_results(results, strategy="all")
