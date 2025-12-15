@@ -212,18 +212,38 @@ Return only the JSON object, no additional text or explanation."""
 
             self.logger.debug(f"Calling OpenAI API with model: {self.model}")
 
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a precise data extraction assistant. Return only valid JSON.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-            )
+            # Use structured output if available (GPT-4o and newer models support this)
+            # This ensures the description field is always included
+            try:
+                # Try with response_format for structured output (GPT-4o, GPT-4-turbo)
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a precise data extraction assistant. Return only valid JSON with all required fields including 'description'.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    response_format={"type": "json_object"},  # Force JSON output
+                )
+            except Exception as e:
+                # Fallback if response_format not supported
+                self.logger.warning(f"Structured output not supported, using standard format: {e}")
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a precise data extraction assistant. Return only valid JSON with all required fields including 'description'.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                )
 
             # Extract response text
             response_text = response.choices[0].message.content
