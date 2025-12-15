@@ -13,13 +13,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import ValidationError
 
-from email_parser.base import (
-    BaseParser,
-    EmailData,
-    FieldOption,
-    InvestmentOpportunity,
-    ParserResult,
-)
+from email_parser.base import (BaseParser, EmailData, FieldOption,
+                               InvestmentOpportunity, ParserResult)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -372,7 +367,7 @@ Return only the JSON object, no additional text or explanation."""
                 ebitda_millions=best_ebitda.value if best_ebitda else None,
                 date=email_data.date,
                 company_name=best_company.value if best_company else None,
-                sector=best_sector.value if best_sector else None,
+                sector=best_sector if isinstance(best_sector, str) else (best_sector.value if best_sector else None),
                 description=description,
                 raw_ebitda_text=best_ebitda.raw_text if best_ebitda else None,
                 ebitda_options=ebitda_options,
