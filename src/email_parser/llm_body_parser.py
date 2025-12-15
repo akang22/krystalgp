@@ -91,7 +91,7 @@ Extract the following fields from the email below. For each field, provide ALL p
 Return ONLY a valid JSON object with these exact fields:
 
 {{
-  "description": "A concise 1-2 sentence business description generated from the email body. DO NOT use the email subject. Examples: 'Leading Canadian Footwear Brand', 'Regional Airline servicing small towns in BC', 'QSR Portfolio with multiple franchise locations'. This field is REQUIRED.",
+  "description": "A very brief 2-5 word business description from email body. Examples: 'Leading Canadian Footwear Brand', 'Regional Airline servicing small towns in BC', 'Global equestrian asset-backed operating platform', 'Canadian mass-timber and pre-fabrication building solutions provider', 'LED ad technology', 'Portfolio of F&B brands'. Keep it SHORT (2-5 words max). DO NOT use email subject.",
   "ebitda_options": [
     {{"value": 5.2, "confidence": 0.95, "source": "email body", "raw_text": "LTM EBITDA of $5.2M"}},
     {{"value": 4.5, "confidence": 0.7, "source": "subject line", "raw_text": "~$4.5M EBITDA"}}
@@ -136,18 +136,29 @@ FOR COMPANY:
 - Confidence: subject line (0.95), official name (0.9), variations (0.6)
 
 FOR SECTOR:
-- Provide up to 3 sector options (most specific to least specific)
-- Be specific: "Quick Service Restaurants" not just "Food"
-- Confidence: highly specific (0.95), general category (0.7), implied (0.5)
+- Use EXACTLY ONE of these sector categories (single word only):
+  - Retail
+  - Consumer Services
+  - Building Products
+  - Transportation Services
+  - Healthcare
+  - Industrial Products
+  - Business Services
+  - Wholesale
+  - Electronics
+  - Transportation Products
+  - Other (use only if none of the above fit)
+- Return a single sector value, not multiple options
+- Match the company's primary business to the closest category
 
 FOR DESCRIPTION (REQUIRED - MUST BE INCLUDED):
-- **CRITICAL**: This field is REQUIRED. You must always generate a description from the email body content
-- Generate a concise 1-2 sentence business description based on the email body (NOT the subject line)
-- Focus on what the company does, its market position, or key characteristics
-- Examples: "Leading Canadian Footwear Brand", "Regional Airline servicing small towns in BC", "QSR Portfolio with multiple franchise locations"
-- Be specific and informative, not generic
-- Extract from the main email content, not signatures or subject lines
-- DO NOT use the email subject as the description - generate a new description from the body text
+- **CRITICAL**: This field is REQUIRED. Generate a SHORT 2-5 word description from email body (NOT subject)
+- Keep it VERY BRIEF: 2-5 words maximum
+- Focus on what the company does in the fewest words possible
+- Examples: "Leading Canadian Footwear Brand", "Regional Airline servicing small towns in BC", "Global equestrian asset-backed operating platform", "LED ad technology", "Portfolio of F&B brands"
+- Be concise and specific - no full sentences
+- Extract from main email content, not signatures or subject lines
+- DO NOT use the email subject as the description
 
 GENERAL:
 - **DO NOT extract from email signatures**: Ignore any information found in email signatures (contact details, disclaimers, "Sent from" messages, etc.)
@@ -258,18 +269,26 @@ Return only the JSON object, no additional text or explanation."""
                 description = extracted_data.get("description", "").strip() or None
             elif "business_description" in extracted_data:
                 description = extracted_data.get("business_description", "").strip() or None
-            
+
             if description:
                 self.logger.info(f"✓ Extracted description: {description}")
             else:
                 self.logger.warning("⚠️ No description found in LLM response")
                 self.logger.warning(f"Available keys in response: {list(extracted_data.keys())}")
                 self.logger.warning(f"Full response preview: {str(extracted_data)[:500]}")
-                
+
                 # Fallback: Try to generate a simple description from company/sector if available
                 # This is a last resort if LLM didn't provide description
-                company = extracted_data.get("company_options", [{}])[0].get("value", "") if extracted_data.get("company_options") else None
-                sector = extracted_data.get("sector_options", [{}])[0].get("value", "") if extracted_data.get("sector_options") else None
+                company = (
+                    extracted_data.get("company_options", [{}])[0].get("value", "")
+                    if extracted_data.get("company_options")
+                    else None
+                )
+                sector = (
+                    extracted_data.get("sector_options", [{}])[0].get("value", "")
+                    if extracted_data.get("sector_options")
+                    else None
+                )
                 if company or sector:
                     description = f"{company or 'Company'} - {sector or 'Business'}"
                     self.logger.info(f"Generated fallback description: {description}")
