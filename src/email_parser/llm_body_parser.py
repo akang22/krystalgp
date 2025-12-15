@@ -341,9 +341,28 @@ Return only the JSON object, no additional text or explanation."""
             best_company = (
                 max(company_options, key=lambda x: x.confidence) if company_options else None
             )
-            best_sector = (
-                max(sector_options, key=lambda x: x.confidence) if sector_options else None
-            )
+            # For sector, use first option (should be single word category)
+            # If multiple options, prefer the most specific one that matches our categories
+            valid_sectors = {
+                "Retail", "Consumer Services", "Building Products", "Transportation Services",
+                "Healthcare", "Industrial Products", "Business Services", "Wholesale",
+                "Electronics", "Transportation Products", "Other"
+            }
+            best_sector = None
+            if sector_options:
+                # First try to find a valid sector category
+                for opt in sorted(sector_options, key=lambda x: x.confidence, reverse=True):
+                    if opt.value in valid_sectors:
+                        best_sector = opt.value
+                        break
+                # If no valid category found, use first option or default to "Other"
+                if not best_sector:
+                    best_sector_value = sector_options[0].value if sector_options else None
+                    # If it's not a valid category, default to "Other"
+                    if best_sector_value and best_sector_value not in valid_sectors:
+                        best_sector = "Other"
+                    else:
+                        best_sector = best_sector_value
 
             # Create InvestmentOpportunity
             opportunity = InvestmentOpportunity(
