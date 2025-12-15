@@ -99,10 +99,7 @@ Return ONLY a valid JSON object with these exact fields:
   "company_options": [
     {{"value": "Project Gravy", "confidence": 0.95, "source": "subject line", "raw_text": "Project Gravy -"}}
   ],
-  "sector_options": [
-    {{"value": "Quick Service Restaurants", "confidence": 0.95, "source": "email body", "raw_text": "QSR portfolio"}},
-    {{"value": "Food & Beverage", "confidence": 0.7, "source": "general category", "raw_text": "restaurant operations"}}
-  ]
+  "sector": "Retail"
 }}
 
 **CRITICAL INSTRUCTIONS:**
