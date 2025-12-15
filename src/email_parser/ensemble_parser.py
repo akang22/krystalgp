@@ -235,15 +235,26 @@ class EnsembleParser(BaseParser):
                     best_source = f"{name} (method: {method_confidence:.2f}, extraction: {option.confidence:.2f}, combined: {combined_score:.2f})"
 
         # Fallback to simple field if no options
+        # Prioritize attachment parsers (OCR + LLM, Layout LLM) over body parsers
         if best_value is None:
+            # First try attachment parsers (they often have better data)
             for name, result in results:
                 fallback_value = getattr(result.opportunity, fallback_field, None)
-                if fallback_value and name in ["LLM", "Vision"]:
+                if fallback_value and result.extraction_source == "attachment":
                     best_value = fallback_value
-                    best_source = f"{name} (fallback)"
+                    best_source = f"{name} (attachment fallback)"
                     break
+            
+            # Then try body parsers if attachment parsers didn't have it
+            if best_value is None:
+                for name, result in results:
+                    fallback_value = getattr(result.opportunity, fallback_field, None)
+                    if fallback_value and result.extraction_source == "body":
+                        best_value = fallback_value
+                        best_source = f"{name} (body fallback)"
+                        break
 
-            # Last resort: any non-None value
+            # Last resort: any non-None value from any parser
             if best_value is None:
                 for name, result in results:
                     fallback_value = getattr(result.opportunity, fallback_field, None)
