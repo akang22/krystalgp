@@ -615,15 +615,20 @@ def display_summary_table(email_data, results: dict):
     # Display table with styling
     st.subheader("📊 Investment Opportunity Summary")
     
-    # Style the dataframe with color coding
+    # Style the dataframe with color coding for Status and Investment Criteria Fit columns
     def style_status(val):
         if val == "Yes":
-            return "background-color: #90EE90"  # Light green
+            return "background-color: #90EE90; color: #000000"  # Light green
         else:
-            return "background-color: #FFB6C1"  # Light red
+            return "background-color: #FFB6C1; color: #000000"  # Light red
     
-    styled_df = df.style.applymap(style_status, subset=["Status", "Investment Criteria Fit?"])
-    st.dataframe(styled_df, width="stretch", hide_index=True)
+    # Apply styling to Status and Investment Criteria Fit columns
+    styled_df = df.style.applymap(
+        style_status, 
+        subset=["Status", "Investment Criteria Fit?"]
+    )
+    
+    st.dataframe(styled_df, width="stretch", hide_index=True, use_container_width=True)
     
     st.divider()
 
