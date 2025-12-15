@@ -265,6 +265,14 @@ Return only the JSON object, no additional text or explanation."""
                 self.logger.warning("⚠️ No description found in LLM response")
                 self.logger.warning(f"Available keys in response: {list(extracted_data.keys())}")
                 self.logger.warning(f"Full response preview: {str(extracted_data)[:500]}")
+                
+                # Fallback: Try to generate a simple description from company/sector if available
+                # This is a last resort if LLM didn't provide description
+                company = extracted_data.get("company_options", [{}])[0].get("value", "") if extracted_data.get("company_options") else None
+                sector = extracted_data.get("sector_options", [{}])[0].get("value", "") if extracted_data.get("sector_options") else None
+                if company or sector:
+                    description = f"{company or 'Company'} - {sector or 'Business'}"
+                    self.logger.info(f"Generated fallback description: {description}")
 
             # Parse options
             ebitda_options = []
