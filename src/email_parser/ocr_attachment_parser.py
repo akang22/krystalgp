@@ -73,38 +73,72 @@ class OCRAttachmentParser(BaseParser):
         import shutil
 
         tesseract_found = False
+        tesseract_path = None
 
         if tesseract_cmd:
             if os.path.exists(tesseract_cmd) or shutil.which(tesseract_cmd):
-                pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+                tesseract_path = tesseract_cmd
                 tesseract_found = True
-                self.logger.info(f"Using tesseract at: {tesseract_cmd}")
+                self.logger.info(f"Using tesseract at: {tesseract_path}")
             else:
                 self.logger.warning(f"Specified tesseract path not found: {tesseract_cmd}")
         elif os.getenv("TESSERACT_CMD"):
             tesseract_env = os.getenv("TESSERACT_CMD")
             if os.path.exists(tesseract_env) or shutil.which(tesseract_env):
-                pytesseract.pytesseract.tesseract_cmd = tesseract_env
+                tesseract_path = tesseract_env
                 tesseract_found = True
-                self.logger.info(f"Using tesseract from TESSERACT_CMD: {tesseract_env}")
+                self.logger.info(f"Using tesseract from TESSERACT_CMD: {tesseract_path}")
             else:
                 self.logger.warning(f"TESSERACT_CMD path not found: {tesseract_env}")
         else:
             # Try to find tesseract in PATH
             tesseract_path = shutil.which("tesseract")
             if tesseract_path:
-                pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 tesseract_found = True
-                self.logger.info(f"Found tesseract at: {tesseract_path}")
+                self.logger.info(f"Found tesseract in PATH at: {tesseract_path}")
+            else:
+                # Fallback: Check common installation paths (especially for macOS/Homebrew)
+                # This helps when Streamlit runs with a different PATH than the terminal
+                system = platform.system()
+                common_paths = []
+                
+                if system == "Darwin":  # macOS
+                    common_paths = [
+                        "/usr/local/bin/tesseract",  # Homebrew (Intel)
+                        "/opt/homebrew/bin/tesseract",  # Homebrew (Apple Silicon)
+                        "/usr/bin/tesseract",  # System
+                    ]
+                elif system == "Linux":
+                    common_paths = [
+                        "/usr/bin/tesseract",  # Standard Linux location
+                        "/usr/local/bin/tesseract",  # Custom install
+                    ]
+                elif system == "Windows":
+                    common_paths = [
+                        "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+                        "C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe",
+                    ]
+                
+                for path in common_paths:
+                    if os.path.exists(path) and os.access(path, os.X_OK):
+                        tesseract_path = path
+                        tesseract_found = True
+                        self.logger.info(f"Found tesseract at common path: {tesseract_path}")
+                        break
+
+        # Set the tesseract command path if found
+        if tesseract_found and tesseract_path:
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
 
         # Verify tesseract is actually working
         if tesseract_found:
             try:
                 # Test tesseract by getting version
-                pytesseract.get_tesseract_version()
-                self.logger.info("Tesseract verified and working")
+                version = pytesseract.get_tesseract_version()
+                self.logger.info(f"Tesseract verified and working (version: {version})")
             except Exception as e:
-                self.logger.error(f"Tesseract found but not working: {e}")
+                self.logger.error(f"Tesseract found at {tesseract_path} but not working: {e}")
+                self.logger.error(f"Error type: {type(e).__name__}")
                 tesseract_found = False
 
         if not tesseract_found:

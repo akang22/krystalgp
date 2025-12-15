@@ -517,3 +517,4 @@ class EnsembleParser(BaseParser):
 
         # Combine results
         return self._combine_results(results, strategy="all")
+        return self._combine_results(results, strategy="all")
