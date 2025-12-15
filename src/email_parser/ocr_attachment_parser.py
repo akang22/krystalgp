@@ -74,10 +74,31 @@ class OCRAttachmentParser(BaseParser):
 
         tesseract_found = False
         tesseract_path = None
+        system = platform.system()
 
         # Debug: Log PATH for troubleshooting
         path_env = os.getenv("PATH", "")
         self.logger.debug(f"Current PATH: {path_env[:200]}...")
+        self.logger.debug(f"Platform: {system}")
+
+        # macOS-specific: Check Homebrew paths first (before PATH check)
+        # This is important because Streamlit may not have Homebrew in PATH
+        if system == "Darwin" and not tesseract_cmd and not os.getenv("TESSERACT_CMD"):
+            macos_paths = [
+                "/opt/homebrew/bin/tesseract",  # Homebrew (Apple Silicon)
+                "/usr/local/bin/tesseract",  # Homebrew (Intel)
+                "/usr/bin/tesseract",  # System
+            ]
+            for path in macos_paths:
+                if os.path.exists(path):
+                    real_path = os.path.realpath(path)
+                    if os.path.exists(real_path) and os.access(real_path, os.X_OK):
+                        tesseract_path = path
+                        tesseract_found = True
+                        self.logger.info(f"Found tesseract on macOS at: {path} (-> {real_path})")
+                        # Set it immediately for pytesseract
+                        pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                        break
 
         if tesseract_cmd:
             if os.path.exists(tesseract_cmd) or shutil.which(tesseract_cmd):
@@ -100,10 +121,9 @@ class OCRAttachmentParser(BaseParser):
             if tesseract_path:
                 tesseract_found = True
                 self.logger.info(f"Found tesseract in PATH at: {tesseract_path}")
-            else:
+            elif not tesseract_found:  # Only try common paths if we haven't found it yet
                 # Fallback: Check common installation paths (especially for macOS/Homebrew)
                 # This helps when Streamlit runs with a different PATH than the terminal
-                system = platform.system()
                 common_paths = []
 
                 if system == "Darwin":  # macOS
