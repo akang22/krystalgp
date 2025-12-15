@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import io
 import os
 from datetime import datetime
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
@@ -749,6 +750,9 @@ def main():
         if cache_key in st.session_state.cached_email_data:
             del st.session_state.cached_email_data[cache_key]
         st.rerun()
+
+    # Display summary table at the very top
+    display_summary_table(email_data, results)
 
     # Display email info
     display_email_metadata(email_data)
