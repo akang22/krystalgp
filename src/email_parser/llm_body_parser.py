@@ -86,7 +86,7 @@ Extract the following fields from the email below. For each field, provide ALL p
 Return ONLY a valid JSON object with these exact fields:
 
 {{
-  "description": "A very brief 2-5 word business description from email body. Examples: 'Leading Canadian Footwear Brand', 'Regional Airline servicing small towns in BC', 'Global equestrian asset-backed operating platform', 'Canadian mass-timber and pre-fabrication building solutions provider', 'LED ad technology', 'Portfolio of F&B brands'. Keep it SHORT (2-5 words max). DO NOT use email subject.",
+  "description": "EXACTLY 2-5 words describing the business. Count your words! Examples: 'Leading Canadian Footwear Brand' (4 words), 'Regional Airline servicing small towns in BC' (5 words), 'LED ad technology' (3 words), 'Portfolio of F&B brands' (4 words). NO MORE THAN 5 WORDS. DO NOT use email subject.",
   "ebitda_options": [
     {{"value": 5.2, "confidence": 0.95, "source": "email body", "raw_text": "LTM EBITDA of $5.2M"}},
     {{"value": 4.5, "confidence": 0.7, "source": "subject line", "raw_text": "~$4.5M EBITDA"}}
@@ -144,13 +144,19 @@ FOR SECTOR:
 - Match the company's primary business to the closest category
 
 FOR DESCRIPTION (REQUIRED - MUST BE INCLUDED):
-- **CRITICAL**: This field is REQUIRED. Generate a SHORT 2-5 word description from email body (NOT subject)
-- Keep it VERY BRIEF: 2-5 words maximum
+- **CRITICAL**: This field is REQUIRED. Generate EXACTLY 2-5 words from email body (NOT subject)
+- **WORD COUNT RULE**: Count your words! The description MUST be between 2 and 5 words total. NO MORE, NO LESS.
+- **STRICT FORMAT**: Use only 2-5 words separated by spaces. No sentences, no periods, no commas.
+- Examples (count the words):
+  * "Leading Canadian Footwear Brand" = 4 words ✓
+  * "Regional Airline servicing small towns in BC" = 5 words ✓
+  * "LED ad technology" = 3 words ✓
+  * "Portfolio of F&B brands" = 4 words ✓
+  * "Frozen seafood importer" = 3 words ✓
 - Focus on what the company does in the fewest words possible
-- Examples: "Leading Canadian Footwear Brand", "Regional Airline servicing small towns in BC", "Global equestrian asset-backed operating platform", "LED ad technology", "Portfolio of F&B brands"
-- Be concise and specific - no full sentences
 - Extract from main email content, not signatures or subject lines
 - DO NOT use the email subject as the description
+- If you generate more than 5 words, you have FAILED. Count and trim to 5 words maximum.
 
 GENERAL:
 - **DO NOT extract from email signatures**: Ignore any information found in email signatures (contact details, disclaimers, "Sent from" messages, etc.)
