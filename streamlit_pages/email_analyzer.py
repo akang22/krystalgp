@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import io
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Optional
 
@@ -574,20 +575,20 @@ def display_summary_table(email_data, results: dict):
     # Get Final Results if available, otherwise use first available result
     final_result = results.get("Final Results")
     llm_body_result = results.get("LLM Body")  # Prefer LLM Body for description
-    
+
     if not final_result:
         # Try to get any result
         for parser_name, result in results.items():
             if result and result.opportunity:
                 final_result = result
                 break
-    
+
     if not final_result or not final_result.opportunity:
         st.warning("No parser results available for summary table")
         return
-    
+
     opp = final_result.opportunity
-    
+
     # Get description from LLM Body parser if available (it generates the description)
     if llm_body_result and llm_body_result.opportunity:
         llm_opp = llm_body_result.opportunity
@@ -707,7 +708,7 @@ def main():
                 st.error(f"Failed to read email: {e}")
                 return
 
-            # Run all parsers
+            # Run all parsers in parallel
             results = {}
 
             progress_bar = st.progress(0)
@@ -715,34 +716,46 @@ def main():
 
             error_log = []
 
-            for idx, (parser_name, parser) in enumerate(parsers.items()):
-                status_text.text(f"Running {parser_name}...")
+            # Run parsers in parallel using ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=len(parsers)) as executor:
+                # Submit all parser tasks
+                future_to_parser = {
+                    executor.submit(parser.parse, email_path): parser_name
+                    for parser_name, parser in parsers.items()
+                }
 
-                try:
-                    result = parser.parse(email_path)
-                    results[parser_name] = result
+                # Collect results as they complete
+                completed = 0
+                for future in as_completed(future_to_parser):
+                    parser_name = future_to_parser[future]
+                    completed += 1
+                    status_text.text(f"Running {parser_name}... ({completed}/{len(parsers)})")
 
-                    # Debug: show what was extracted
-                    if result and result.opportunity:
-                        opp = result.opportunity
-                        ebitda_str = (
-                            f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "None"
-                        )
-                        status_text.text(
-                            f"✓ {parser_name}: EBITDA={ebitda_str}, Company={opp.company_name or 'None'}"
-                        )
+                    try:
+                        result = future.result()
+                        results[parser_name] = result
 
-                        # Log errors if any
-                        if result.errors:
-                            error_log.append(f"{parser_name}: {', '.join(result.errors)}")
+                        # Debug: show what was extracted
+                        if result and result.opportunity:
+                            opp = result.opportunity
+                            ebitda_str = (
+                                f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "None"
+                            )
+                            status_text.text(
+                                f"✓ {parser_name}: EBITDA={ebitda_str}, Company={opp.company_name or 'None'}"
+                            )
 
-                except Exception as e:
-                    error_msg = f"{parser_name} failed: {str(e)}"
-                    error_log.append(error_msg)
-                    st.error(f"❌ {error_msg}")
-                    results[parser_name] = None
+                            # Log errors if any
+                            if result.errors:
+                                error_log.append(f"{parser_name}: {', '.join(result.errors)}")
 
-                progress_bar.progress((idx + 1) / len(parsers))
+                    except Exception as e:
+                        error_msg = f"{parser_name} failed: {str(e)}"
+                        error_log.append(error_msg)
+                        st.error(f"❌ {error_msg}")
+                        results[parser_name] = None
+
+                    progress_bar.progress(completed / len(parsers))
 
             status_text.text("✅ Parsing complete!")
 

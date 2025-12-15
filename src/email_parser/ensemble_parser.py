@@ -442,7 +442,7 @@ class EnsembleParser(BaseParser):
                     description = opp.description
                     self.logger.info(f"Using description from {name}: {description}")
                     break
-        
+
         # Fallback to any opportunity with description
         if not description:
             for opp in opportunities:
@@ -536,4 +536,5 @@ class EnsembleParser(BaseParser):
                     results.append(result)
 
         # Combine results
+        return self._combine_results(results, strategy="all")
         return self._combine_results(results, strategy="all")
