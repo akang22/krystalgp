@@ -86,10 +86,12 @@ class LLMBodyParser(BaseParser):
 
 Extract the following fields from the email below. For each field, provide ALL possible values you find with confidence scores.
 
+**IMPORTANT: The "description" field is MANDATORY and must be generated from the email body content, NOT the subject line.**
+
 Return ONLY a valid JSON object with these exact fields:
 
 {{
-  "description": "Brief 1-2 sentence business description based on email body content. Examples: 'Leading Canadian Footwear Brand', 'Regional Airline servicing small towns in BC', 'QSR Portfolio with multiple franchise locations'. REQUIRED FIELD - always provide a description.",
+  "description": "A concise 1-2 sentence business description generated from the email body. DO NOT use the email subject. Examples: 'Leading Canadian Footwear Brand', 'Regional Airline servicing small towns in BC', 'QSR Portfolio with multiple franchise locations'. This field is REQUIRED.",
   "ebitda_options": [
     {{"value": 5.2, "confidence": 0.95, "source": "email body", "raw_text": "LTM EBITDA of $5.2M"}},
     {{"value": 4.5, "confidence": 0.7, "source": "subject line", "raw_text": "~$4.5M EBITDA"}}
