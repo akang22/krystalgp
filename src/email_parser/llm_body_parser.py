@@ -138,12 +138,14 @@ FOR SECTOR:
 - Be specific: "Quick Service Restaurants" not just "Food"
 - Confidence: highly specific (0.95), general category (0.7), implied (0.5)
 
-FOR DESCRIPTION:
-- Generate a concise 1-2 sentence business description based on the email body
+FOR DESCRIPTION (REQUIRED - MUST BE INCLUDED):
+- **CRITICAL**: This field is REQUIRED. You must always generate a description from the email body content
+- Generate a concise 1-2 sentence business description based on the email body (NOT the subject line)
 - Focus on what the company does, its market position, or key characteristics
 - Examples: "Leading Canadian Footwear Brand", "Regional Airline servicing small towns in BC", "QSR Portfolio with multiple franchise locations"
 - Be specific and informative, not generic
-- Extract from the main email content, not signatures
+- Extract from the main email content, not signatures or subject lines
+- DO NOT use the email subject as the description - generate a new description from the body text
 
 GENERAL:
 - **DO NOT extract from email signatures**: Ignore any information found in email signatures (contact details, disclaimers, "Sent from" messages, etc.)
@@ -223,18 +225,24 @@ Return only the JSON object, no additional text or explanation."""
 
             # Extract response text
             response_text = response.choices[0].message.content
-            self.logger.debug(f"LLM response: {response_text[:200]}...")
+            self.logger.debug(f"LLM response: {response_text[:500]}...")
 
             # Parse JSON response
             extracted_data = self._parse_llm_response(response_text)
 
-            # Extract description
-            description = extracted_data.get("description", "").strip() or None
+            # Extract description - check multiple possible keys
+            description = None
+            if "description" in extracted_data:
+                description = extracted_data.get("description", "").strip() or None
+            elif "business_description" in extracted_data:
+                description = extracted_data.get("business_description", "").strip() or None
+            
             if description:
-                self.logger.info(f"Extracted description: {description[:100]}")
+                self.logger.info(f"✓ Extracted description: {description}")
             else:
-                self.logger.warning("No description found in LLM response")
-                self.logger.debug(f"LLM response keys: {list(extracted_data.keys())}")
+                self.logger.warning("⚠️ No description found in LLM response")
+                self.logger.warning(f"Available keys in response: {list(extracted_data.keys())}")
+                self.logger.warning(f"Full response preview: {str(extracted_data)[:500]}")
 
             # Parse options
             ebitda_options = []
