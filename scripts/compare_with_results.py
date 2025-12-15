@@ -266,8 +266,19 @@ def main():
         print(f"Error: {SAMPLE_EMAILS_DIR} not found")
         return
 
-    email_files = list(SAMPLE_EMAILS_DIR.glob("*.msg"))
-    print(f"\nFound {len(email_files)} email files to process")
+    # Only process emails that are in the mapping CSV
+    if not MAPPING_CSV.exists() or len(email_to_project) == 0:
+        print(f"Error: {MAPPING_CSV} not found or empty. Cannot filter emails.")
+        return
+    
+    # Get list of email files from mapping
+    mapped_email_files = set(email_to_project.keys())
+    all_email_files = list(SAMPLE_EMAILS_DIR.glob("*.msg"))
+    
+    # Filter to only emails in mapping
+    email_files = [f for f in all_email_files if f.name in mapped_email_files]
+    print(f"\nFound {len(all_email_files)} total email files")
+    print(f"Processing {len(email_files)} emails from mapping CSV (filtered from {len(all_email_files)} total)")
 
     # Process each email
     comparison_data = []
