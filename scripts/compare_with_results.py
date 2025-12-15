@@ -28,6 +28,7 @@ from email_parser.llm_body_parser import LLMBodyParser
 WORKSPACE = Path(__file__).parent.parent
 SAMPLE_EMAILS_DIR = WORKSPACE / "sample_emails"
 RESULTS_CSV = WORKSPACE / "results.csv"
+MAPPING_CSV = WORKSPACE / "email_to_project_mapping.csv"
 
 
 def parse_ebitda_value(ebitda_str: str) -> Optional[float]:
@@ -111,25 +112,44 @@ def match_project_name(parsed_name: str, csv_name: str) -> bool:
     return False
 
 
-def find_matching_csv_row(parsed_project_name: str, results_df: pd.DataFrame) -> Optional[pd.Series]:
+def find_matching_csv_row(
+    mapped_project_name: Optional[str], 
+    parsed_project_name: str, 
+    results_df: pd.DataFrame
+) -> Optional[pd.Series]:
     """Find matching row in results.csv by project name.
 
     Args:
-        parsed_project_name: Project name from parser
+        mapped_project_name: Project name from email_to_project_mapping.csv (if available)
+        parsed_project_name: Project name from parser (fallback)
         results_df: DataFrame from results.csv
 
     Returns:
         Matching row if found, None otherwise
     """
-    if not parsed_project_name:
+    # First try to use the mapped project name if available
+    project_name_to_match = mapped_project_name if mapped_project_name else parsed_project_name
+    
+    if not project_name_to_match:
         return None
     
+    # Try exact match first (case-insensitive)
     for idx, row in results_df.iterrows():
         csv_project_name = row.get("Company / Project Name", "")
         if pd.isna(csv_project_name) or not csv_project_name:
             continue
         
-        if match_project_name(parsed_project_name, csv_project_name):
+        # Exact match (case-insensitive)
+        if str(csv_project_name).strip().lower() == str(project_name_to_match).strip().lower():
+            return row
+    
+    # If no exact match, try fuzzy matching
+    for idx, row in results_df.iterrows():
+        csv_project_name = row.get("Company / Project Name", "")
+        if pd.isna(csv_project_name) or not csv_project_name:
+            continue
+        
+        if match_project_name(project_name_to_match, csv_project_name):
             return row
     
     return None
@@ -217,6 +237,20 @@ def main():
     results_df = pd.read_csv(RESULTS_CSV)
     print(f"\nLoaded {len(results_df)} rows from results.csv")
 
+    # Load email-to-project mapping
+    mapping_df = None
+    if MAPPING_CSV.exists():
+        mapping_df = pd.read_csv(MAPPING_CSV)
+        # Create a dictionary for quick lookup: email_filename -> project_name
+        email_to_project = dict(zip(
+            mapping_df["Email File"].str.strip(),
+            mapping_df["Project Name"].str.strip()
+        ))
+        print(f"Loaded {len(email_to_project)} email-to-project mappings")
+    else:
+        print(f"Warning: {MAPPING_CSV} not found, will use parsed project names for matching")
+        email_to_project = {}
+
     # Initialize parser
     try:
         parser = EnsembleParser()
@@ -273,8 +307,13 @@ def main():
             parsed_ebitda_for_calc = parsed_ebitda
             parsed_criteria = calculate_investment_criteria_fit(parsed_hq, parsed_ebitda_for_calc)
 
-            # Try to find matching row in results.csv
-            csv_row = find_matching_csv_row(parsed_project, results_df)
+            # Get mapped project name from email_to_project_mapping.csv if available
+            mapped_project_name = email_to_project.get(email_file.name.strip(), None)
+            if mapped_project_name:
+                print(f"  📋 Using mapped project name: {mapped_project_name}")
+
+            # Try to find matching row in results.csv using mapped name (or parsed as fallback)
+            csv_row = find_matching_csv_row(mapped_project_name, parsed_project, results_df)
 
             if csv_row is not None:
                 emails_matched += 1
@@ -327,6 +366,7 @@ def main():
                 comparison_data.append(
                     {
                         "Email File": email_file.name,
+                        "Project Name (Mapped)": mapped_project_name or "N/A",
                         "Project Name (CSV)": csv_project,
                         "Project Name (Parsed)": parsed_project,
                         "Project Match": "✓" if project_match else "✗",
@@ -353,6 +393,7 @@ def main():
                 comparison_data.append(
                     {
                         "Email File": email_file.name,
+                        "Project Name (Mapped)": mapped_project_name or "N/A",
                         "Project Name (CSV)": "NOT FOUND",
                         "Project Name (Parsed)": parsed_project,
                         "Project Match": "N/A",
@@ -395,11 +436,14 @@ def main():
     # Create comparison DataFrame
     comparison_df = pd.DataFrame(comparison_data)
 
-    # Sort by project name (CSV, then parsed)
+    # Sort by project name (CSV, then mapped, then parsed)
     if len(comparison_df) > 0:
+        sort_columns = ["Matched in CSV", "Project Name (CSV)", "Project Name (Mapped)", "Project Name (Parsed)"]
+        # Only include columns that exist
+        sort_columns = [col for col in sort_columns if col in comparison_df.columns]
         comparison_df = comparison_df.sort_values(
-            ["Matched in CSV", "Project Name (CSV)", "Project Name (Parsed)"],
-            ascending=[False, True, True],
+            sort_columns,
+            ascending=[False, True, True, True],
             na_position="last",
         )
 

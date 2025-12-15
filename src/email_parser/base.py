@@ -4,9 +4,12 @@ This module provides the foundational classes and Pydantic models for
 extracting investment opportunity data from .msg email files.
 """
 
+import email
+import email.utils
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -286,6 +289,137 @@ class BaseParser(ABC):
             recipients.extend([r.strip() for r in msg.cc.split(";") if r.strip()])
 
         return recipients
+
+    def extract_eml_file(self, eml_path: Path) -> EmailData:
+        """Extract data from a .eml email file.
+
+        Args:
+            eml_path: Path to the .eml file
+
+        Returns:
+            EmailData object with extracted email content
+
+        Raises:
+            FileNotFoundError: If eml_path doesn't exist
+            Exception: If extraction fails
+        """
+        if not eml_path.exists():
+            raise FileNotFoundError(f"Email file not found: {eml_path}")
+
+        try:
+            with open(eml_path, "rb") as f:
+                msg = email.message_from_bytes(f.read())
+
+            # Extract sender
+            sender = msg.get("From", "")
+
+            # Extract recipients
+            recipients = []
+            for header in ["To", "Cc", "Bcc"]:
+                header_value = msg.get(header, "")
+                if header_value:
+                    # Parse email addresses from header
+                    for addr in email.utils.getaddresses([header_value]):
+                        if addr[1]:  # email address exists
+                            recipients.append(addr[1])
+
+            # Extract subject
+            subject = msg.get("Subject", "")
+
+            # Extract date
+            date_str = msg.get("Date", "")
+            date = None
+            if date_str:
+                try:
+                    date = parsedate_to_datetime(date_str)
+                except Exception:
+                    self.logger.warning(f"Could not parse date: {date_str}")
+
+            # Extract body (plain text and HTML)
+            body_plain = None
+            body_html = None
+
+            if msg.is_multipart():
+                for part in msg.walk():
+                    content_type = part.get_content_type()
+                    content_disposition = str(part.get("Content-Disposition", ""))
+
+                    # Skip attachments
+                    if "attachment" in content_disposition:
+                        continue
+
+                    # Get plain text body
+                    if content_type == "text/plain" and body_plain is None:
+                        try:
+                            payload = part.get_payload(decode=True)
+                            if payload:
+                                body_plain = payload.decode("utf-8", errors="ignore")
+                        except Exception as e:
+                            self.logger.warning(f"Failed to decode plain text body: {e}")
+
+                    # Get HTML body
+                    if content_type == "text/html" and body_html is None:
+                        try:
+                            payload = part.get_payload(decode=True)
+                            if payload:
+                                body_html = payload.decode("utf-8", errors="ignore")
+                        except Exception as e:
+                            self.logger.warning(f"Failed to decode HTML body: {e}")
+            else:
+                # Single part message
+                content_type = msg.get_content_type()
+                payload = msg.get_payload(decode=True)
+                if payload:
+                    try:
+                        decoded = payload.decode("utf-8", errors="ignore")
+                        if content_type == "text/plain":
+                            body_plain = decoded
+                        elif content_type == "text/html":
+                            body_html = decoded
+                    except Exception as e:
+                        self.logger.warning(f"Failed to decode body: {e}")
+
+            email_data = EmailData(
+                sender=sender,
+                recipients=recipients,
+                subject=subject,
+                body_plain=body_plain,
+                body_html=body_html,
+                date=date,
+            )
+
+            # Extract attachments
+            if msg.is_multipart():
+                for part in msg.walk():
+                    content_disposition = str(part.get("Content-Disposition", ""))
+                    if "attachment" in content_disposition:
+                        filename = part.get_filename()
+                        if filename:
+                            # Decode filename if it's encoded
+                            try:
+                                filename = email.utils.decode_rfc2231(filename) or filename
+                            except Exception:
+                                pass
+
+                            payload = part.get_payload(decode=True)
+                            if payload:
+                                att = Attachment(
+                                    filename=filename,
+                                    content=payload,
+                                    content_type=part.get_content_type(),
+                                    size_bytes=len(payload),
+                                )
+                                email_data.attachments.append(att)
+
+            self.logger.info(
+                f"Extracted {len(email_data.attachments)} attachments from {eml_path.name}"
+            )
+
+            return email_data
+
+        except Exception as e:
+            self.logger.error(f"Failed to extract eml file {eml_path}: {e}")
+            raise
 
     def extract_original_sender(self, email_data: EmailData) -> Optional[str]:
         """Extract original sender from forwarded email.

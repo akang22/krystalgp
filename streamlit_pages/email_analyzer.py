@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import io
 import os
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Optional
@@ -646,18 +647,6 @@ def calculate_investment_criteria_fit(
     return "Yes" if (is_western_canada and ebitda_in_range) else "No"
 
 
-def get_status_color(status: str) -> str:
-    """Get color for status based on investment criteria fit.
-
-    Args:
-        status: "Yes" or "No"
-
-    Returns:
-        Color name for Streamlit
-    """
-    return "green" if status == "Yes" else "red"
-
-
 def display_summary_table(email_data, results: dict):
     """Display summary table at the top with key investment opportunity data.
 
@@ -698,9 +687,18 @@ def display_summary_table(email_data, results: dict):
     hq_location = opp.hq_location or "N/A"
     source = opp.source_domain or "N/A"
 
+    # Extract receiver username from recipient email
+    receiver = "N/A"
+    recipient_email = opp.recipient or (email_data.recipients[0] if email_data.recipients else None)
+    if recipient_email:
+        # Extract username part (before @)
+        if "@" in recipient_email:
+            receiver = recipient_email.split("@")[0]
+        else:
+            receiver = recipient_email
+
     # Calculate investment criteria fit
     investment_fit = calculate_investment_criteria_fit(opp.hq_location, opp.ebitda_millions)
-    status_color = get_status_color(investment_fit)
 
     # Create table data
     table_data = {
@@ -711,7 +709,7 @@ def display_summary_table(email_data, results: dict):
         "LTM EBITDA ($M)": [ebitda],
         "HQ Location": [hq_location],
         "Source": [source],
-        "Status": [investment_fit],
+        "Receiver": [receiver],
         "Investment Criteria Fit?": [investment_fit],
     }
 
@@ -720,15 +718,15 @@ def display_summary_table(email_data, results: dict):
     # Display table with styling
     st.subheader("📊 Investment Opportunity Summary")
 
-    # Style the dataframe with color coding for Status and Investment Criteria Fit columns
+    # Style the dataframe with color coding for Investment Criteria Fit column
     def style_status(val):
         if val == "Yes":
             return "background-color: #90EE90; color: #000000"  # Light green
         else:
             return "background-color: #FFB6C1; color: #000000"  # Light red
 
-    # Apply styling to Status and Investment Criteria Fit columns
-    styled_df = df.style.applymap(style_status, subset=["Status", "Investment Criteria Fit?"])
+    # Apply styling to Investment Criteria Fit column
+    styled_df = df.style.applymap(style_status, subset=["Investment Criteria Fit?"])
 
     st.dataframe(styled_df, width="stretch", hide_index=True, use_container_width=True)
 
@@ -738,30 +736,65 @@ def display_summary_table(email_data, results: dict):
 def main():
     """Main Streamlit app."""
     # Get list of emails
-    email_files = sorted([f.name for f in SAMPLE_EMAILS_DIR.glob("*.msg")])
-
-    if not email_files:
-        st.error(f"No .msg files found in {SAMPLE_EMAILS_DIR}")
-        return
-
-    # Email selector in main page
+    # Email input method selection
     st.subheader("📨 Select Email to Analyze")
-
-    selected_email = st.selectbox(
-        "Choose an email:",
-        email_files,
-        index=(
-            email_files.index(
-                "FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg"
-            )
-            if "FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg"
-            in email_files
-            else 0
-        ),
-        label_visibility="collapsed",
+    
+    input_method = st.radio(
+        "Choose input method:",
+        ["Sample Email", "Upload .eml File"],
+        horizontal=True,
     )
 
-    email_path = SAMPLE_EMAILS_DIR / selected_email
+    email_path = None
+    selected_email = None
+    uploaded_file = None
+
+    if input_method == "Sample Email":
+        email_files = sorted([f.name for f in SAMPLE_EMAILS_DIR.glob("*.msg")])
+
+        if not email_files:
+            st.error(f"No .msg files found in {SAMPLE_EMAILS_DIR}")
+            return
+
+        selected_email = st.selectbox(
+            "Choose an email:",
+            email_files,
+            index=(
+                email_files.index(
+                    "FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg"
+                )
+                if "FW Project Gravy - Franchise QSR Portfolio Acquisition Opportunity.msg"
+                in email_files
+                else 0
+            ),
+            label_visibility="collapsed",
+        )
+
+        email_path = SAMPLE_EMAILS_DIR / selected_email
+    else:
+        # File upload
+        uploaded_file = st.file_uploader(
+            "Upload .eml file",
+            type=["eml"],
+            help="Upload an .eml email file for analysis",
+        )
+
+        if uploaded_file is not None:
+            # Save uploaded file to a temporary location
+            # Create a temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".eml") as tmp_file:
+                tmp_file.write(uploaded_file.getvalue())
+                email_path = Path(tmp_file.name)
+                selected_email = uploaded_file.name
+
+            st.success(f"✅ Uploaded: {uploaded_file.name}")
+        else:
+            st.info("Please upload an .eml file to analyze")
+            return
+
+    if not email_path or not email_path.exists():
+        st.error("Email file not found")
+        return
 
     st.divider()
 
@@ -779,10 +812,18 @@ def main():
         st.session_state.cached_email_data = {}
 
     # Check if we have cached results for this email
-    cache_key = selected_email
+    # For uploaded files, use a unique cache key based on file content hash
+    if uploaded_file is not None:
+        import hashlib
+        file_hash = hashlib.md5(uploaded_file.getvalue()).hexdigest()[:8]
+        cache_key = f"uploaded_{file_hash}_{selected_email}"
+    else:
+        cache_key = selected_email
+    
     use_cached = (
         cache_key in st.session_state.cached_results
         and cache_key in st.session_state.cached_email_data
+        and input_method == "Sample Email"  # Don't cache uploaded files
     )
 
     if use_cached:
@@ -796,9 +837,15 @@ def main():
             # Get email metadata first
             try:
                 first_parser = list(parsers.values())[0]
-                email_data = first_parser.extract_msg_file(email_path)
+                # Detect file type and use appropriate extraction method
+                if email_path.suffix.lower() == ".eml":
+                    email_data = first_parser.extract_eml_file(email_path)
+                else:
+                    email_data = first_parser.extract_msg_file(email_path)
             except Exception as e:
                 st.error(f"Failed to read email: {e}")
+                import traceback
+                st.code(traceback.format_exc())
                 return
 
             # Run all parsers in parallel
@@ -862,13 +909,14 @@ def main():
             st.session_state.cached_results[cache_key] = results
             st.session_state.cached_email_data[cache_key] = email_data
 
-    # Add reparse button
-    if st.button("🔄 Reparse Email", help="Clear cache and reparse this email"):
-        if cache_key in st.session_state.cached_results:
-            del st.session_state.cached_results[cache_key]
-        if cache_key in st.session_state.cached_email_data:
-            del st.session_state.cached_email_data[cache_key]
-        st.rerun()
+    # Add reparse button (only show for sample emails, not uploaded files)
+    if input_method == "Sample Email":
+        if st.button("🔄 Reparse Email", help="Clear cache and reparse this email"):
+            if cache_key in st.session_state.cached_results:
+                del st.session_state.cached_results[cache_key]
+            if cache_key in st.session_state.cached_email_data:
+                del st.session_state.cached_email_data[cache_key]
+            st.rerun()
 
     # Display summary table at the very top
     display_summary_table(email_data, results)

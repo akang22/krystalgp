@@ -20,13 +20,13 @@ from pdf2image import convert_from_bytes
 from PIL import Image
 
 from email_parser.base import (
+    VALID_SECTORS,
     Attachment,
     BaseParser,
     BoundingBox,
     EmailData,
     InvestmentOpportunity,
     ParserResult,
-    VALID_SECTORS,
 )
 
 # Load environment variables from .env file
