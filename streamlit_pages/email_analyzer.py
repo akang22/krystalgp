@@ -139,8 +139,57 @@ def display_parser_results(results):
 
     # Create comparison table
     comparison_data = []
+    final_results_data = None
 
+    # Separate Final Results to show at the bottom
     for parser_name, result in results.items():
+        if parser_name == "Final Results":
+            # Store Final Results separately to add at the end
+            if result:
+                opp = result.opportunity
+
+                # Format EBITDA with options count
+                ebitda_str = f"${opp.ebitda_millions:.2f}M" if opp.ebitda_millions else "Not found"
+                if hasattr(opp, "ebitda_options") and opp.ebitda_options:
+                    ebitda_str += f" ({len(opp.ebitda_options)} options)"
+
+                # Format location with options count
+                location_str = opp.hq_location or "Not found"
+                if hasattr(opp, "location_options") and opp.location_options:
+                    location_str += f" ({len(opp.location_options)} options)"
+
+                # Format company with options count
+                company_str = opp.company_name or "Not found"
+                if hasattr(opp, "company_options") and opp.company_options:
+                    company_str += f" ({len(opp.company_options)} options)"
+
+                # Format sector with options count
+                sector_str = opp.sector or "Not found"
+                if hasattr(opp, "sector_options") and opp.sector_options:
+                    sector_str += f" ({len(opp.sector_options)} options)"
+
+                final_results_data = {
+                    "Parser": parser_name,
+                    "EBITDA": ebitda_str,
+                    "Company": company_str,
+                    "HQ Location": location_str,
+                    "Sector": sector_str,
+                    "Source": result.extraction_source,
+                    "Time (s)": f"{result.processing_time_seconds:.2f}",
+                }
+            else:
+                final_results_data = {
+                    "Parser": "Final Results",
+                    "EBITDA": "Error",
+                    "Company": "Error",
+                    "HQ Location": "Error",
+                    "Sector": "Error",
+                    "Source": "N/A",
+                    "Time (s)": "N/A",
+                }
+            continue  # Skip adding to main list, will add at end
+
+        # Process all other parsers
         if result:
             opp = result.opportunity
 
@@ -187,6 +236,10 @@ def display_parser_results(results):
                     "Time (s)": "N/A",
                 }
             )
+
+    # Add Final Results at the bottom if it exists
+    if final_results_data:
+        comparison_data.append(final_results_data)
 
     df = pd.DataFrame(comparison_data)
     st.dataframe(df, width="stretch", hide_index=True)
