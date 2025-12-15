@@ -573,18 +573,26 @@ def display_summary_table(email_data, results: dict):
     """
     # Get Final Results if available, otherwise use first available result
     final_result = results.get("Final Results")
+    llm_body_result = results.get("LLM Body")  # Prefer LLM Body for description
+    
     if not final_result:
         # Try to get any result
         for parser_name, result in results.items():
             if result and result.opportunity:
                 final_result = result
                 break
-
+    
     if not final_result or not final_result.opportunity:
         st.warning("No parser results available for summary table")
         return
-
+    
     opp = final_result.opportunity
+    
+    # Get description from LLM Body parser if available (it generates the description)
+    if llm_body_result and llm_body_result.opportunity:
+        llm_opp = llm_body_result.opportunity
+        if hasattr(llm_opp, "description") and llm_opp.description:
+            opp.description = llm_opp.description  # Override with LLM-generated description
 
     # Extract data
     date_received = email_data.date.strftime("%Y-%m-%d") if email_data.date else "N/A"
