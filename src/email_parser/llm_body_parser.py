@@ -131,7 +131,7 @@ FOR COMPANY:
 - Confidence: subject line (0.95), official name (0.9), variations (0.6)
 
 FOR SECTOR:
-- Use EXACTLY ONE of these sector categories (single word only):
+- Use EXACTLY ONE of these sector categories (single word or two-word phrase):
   - Retail
   - Consumer Services
   - Building Products
@@ -143,7 +143,7 @@ FOR SECTOR:
   - Electronics
   - Transportation Products
   - Other (use only if none of the above fit)
-- Return a single sector value, not multiple options
+- Return a single sector string value (not an array)
 - Match the company's primary business to the closest category
 
 FOR DESCRIPTION (REQUIRED - MUST BE INCLUDED):
@@ -318,13 +318,45 @@ Return only the JSON object, no additional text or explanation."""
                     if "signature" not in source:
                         company_options.append(FieldOption(**opt))
 
-            # Convert sector_options and filter out signature sources
-            for opt in extracted_data.get("sector_options", []):
-                if isinstance(opt, dict) and "value" in opt:
-                    source = opt.get("source", "").lower()
-                    # Filter out any results from signatures
-                    if "signature" not in source:
-                        sector_options.append(FieldOption(**opt))
+            # Sector is now a single string value, not an array
+            # Handle both old format (sector_options array) and new format (sector string)
+            valid_sectors = {
+                "Retail", "Consumer Services", "Building Products", "Transportation Services",
+                "Healthcare", "Industrial Products", "Business Services", "Wholesale",
+                "Electronics", "Transportation Products", "Other"
+            }
+            
+            best_sector = None
+            sector_options = []
+            
+            # Check for new format (single sector string)
+            if "sector" in extracted_data:
+                sector_value = extracted_data.get("sector", "").strip()
+                if sector_value in valid_sectors:
+                    best_sector = sector_value
+                else:
+                    # If not valid, default to "Other"
+                    best_sector = "Other"
+                    self.logger.warning(f"Invalid sector '{sector_value}', defaulting to 'Other'")
+            # Fallback to old format (sector_options array) for backwards compatibility
+            elif "sector_options" in extracted_data:
+                for opt in extracted_data.get("sector_options", []):
+                    if isinstance(opt, dict) and "value" in opt:
+                        source = opt.get("source", "").lower()
+                        # Filter out any results from signatures
+                        if "signature" not in source:
+                            sector_options.append(FieldOption(**opt))
+                
+                if sector_options:
+                    # Find first valid sector category
+                    for opt in sorted(sector_options, key=lambda x: x.confidence, reverse=True):
+                        if opt.value in valid_sectors:
+                            best_sector = opt.value
+                            break
+                    # If no valid category found, default to "Other"
+                    if not best_sector:
+                        best_sector = "Other"
+                        self.logger.warning("No valid sector found in options, defaulting to 'Other'")
 
             # Use highest confidence options as primary values
             best_ebitda = (
@@ -336,28 +368,6 @@ Return only the JSON object, no additional text or explanation."""
             best_company = (
                 max(company_options, key=lambda x: x.confidence) if company_options else None
             )
-            # For sector, use first option (should be single word category)
-            # If multiple options, prefer the most specific one that matches our categories
-            valid_sectors = {
-                "Retail", "Consumer Services", "Building Products", "Transportation Services",
-                "Healthcare", "Industrial Products", "Business Services", "Wholesale",
-                "Electronics", "Transportation Products", "Other"
-            }
-            best_sector = None
-            if sector_options:
-                # First try to find a valid sector category
-                for opt in sorted(sector_options, key=lambda x: x.confidence, reverse=True):
-                    if opt.value in valid_sectors:
-                        best_sector = opt.value
-                        break
-                # If no valid category found, use first option or default to "Other"
-                if not best_sector:
-                    best_sector_value = sector_options[0].value if sector_options else None
-                    # If it's not a valid category, default to "Other"
-                    if best_sector_value and best_sector_value not in valid_sectors:
-                        best_sector = "Other"
-                    else:
-                        best_sector = best_sector_value
 
             # Create InvestmentOpportunity
             opportunity = InvestmentOpportunity(
