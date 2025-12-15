@@ -374,7 +374,7 @@ class OCRAttachmentParser(BaseParser):
 Extract the following fields from the OCR text below. Return ONLY a valid JSON object:
 
 {{
-  "hq_location": "string or null - Headquarters location",
+  "hq_location": "string or null - Headquarters location OR operating region (city, state/province, country, or region like 'Western Canada')",
   "ebitda_millions": number or null - EBITDA in millions,
   "company_name": "string or null - Company or project name",
   "sector": "string or null - Industry sector",
@@ -389,10 +389,15 @@ FOR EBITDA:
 - Look for: "Adjusted EBITDA", "Portfolio EBITDA", "LTM EBITDA"
 - Convert to millions: $5.2M → 5.2, C$3.6M → 3.6
 
-FOR LOCATIONS:
-- PRIORITIZE BC cities: Vancouver, Victoria, Surrey, Burnaby, Richmond, Kelowna
-- Look for: "HQ:", "Headquarters:", "Location:", "Based in"
-- Include specific city and province if found
+FOR LOCATIONS (IMPORTANT - LOOK FOR OPERATING REGIONS TOO):
+- **PRIORITIZE**: Look for BOTH headquarters AND operating regions/scope of operations
+- **HEADQUARTERS**: Look for "HQ:", "Headquarters:", "Location:", "Based in"
+- **OPERATING REGIONS**: Look for "operating in", "serves", "scope of operations", "service area", "markets", "geographic presence"
+- **WESTERN CANADA DETECTION**: If document mentions "Western Canada", "Western Canadian", "West Coast", "BC and Alberta", or similar regional terms, use "Western Canada" as the location
+- **PRIORITIZE BC cities**: Vancouver, Victoria, Surrey, Burnaby, Richmond, Kelowna
+- **REGIONAL TERMS**: If no specific city but mentions "Western Canada", "Western Canadian", "West Coast", use that as location
+- If company operates in Western Canada (BC/Alberta) but HQ is elsewhere, still note "Western Canada" as location
+- Include specific city and province if found, OR use regional descriptor if that's what's mentioned
 
 FOR COMPANY:
 - Check document header/title

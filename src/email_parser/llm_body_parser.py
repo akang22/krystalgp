@@ -121,12 +121,16 @@ FOR EBITDA:
 
 FOR LOCATIONS (HIGH PRIORITY - BC FOCUS):
 - **PRIORITIZE BC LOCATIONS**: Cities/regions in British Columbia should get HIGHEST confidence
-- Look for: "headquarters", "HQ", "based in", "located in", "head office"
+- **LOOK FOR BOTH**: Headquarters AND operating regions/scope of operations
+- **HEADQUARTERS**: Look for "headquarters", "HQ", "based in", "located in", "head office"
+- **OPERATING REGIONS**: Look for "operating in", "serves", "scope of operations", "service area", "markets", "geographic presence", "operates in"
+- **WESTERN CANADA DETECTION**: If email mentions "Western Canada", "Western Canadian", "West Coast", "BC and Alberta", or similar regional terms, include "Western Canada" as a location option with high confidence (0.9)
 - BC cities to watch for: Vancouver, Victoria, Kelowna, Surrey, Burnaby, Richmond, Abbotsford, etc.
-- Include specific cities (Vancouver) AND provinces (British Columbia, BC) as separate options
+- Include specific cities (Vancouver) AND provinces (British Columbia, BC) AND regions (Western Canada) as separate options
 - Mark BC locations with 0.95 confidence if explicit, 0.85 if implied
+- Mark "Western Canada" with 0.9 confidence if explicitly mentioned, 0.8 if implied from service area
 - Non-BC locations: 0.7 for explicit, 0.5 for general mention
-- Include target markets/service areas if mentioned
+- Include target markets/service areas if mentioned - if they mention operating in Western Canada, that's a valid location
 
 FOR COMPANY:
 - Look in subject line first (Project names, code names)

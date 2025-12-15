@@ -912,10 +912,12 @@ def main():
     # Add reparse button (only show for sample emails, not uploaded files)
     if input_method == "Sample Email":
         if st.button("🔄 Reparse Email", help="Clear cache and reparse this email"):
+            # Clear all cache entries for this email to force fresh parsing
             if cache_key in st.session_state.cached_results:
                 del st.session_state.cached_results[cache_key]
             if cache_key in st.session_state.cached_email_data:
                 del st.session_state.cached_email_data[cache_key]
+            # Rerun will trigger fresh parsing since cache is now empty
             st.rerun()
 
     # Display summary table at the very top
@@ -943,41 +945,6 @@ def main():
 
     # Detailed results
     display_detailed_results(results)
-
-    # Download results
-    st.divider()
-    st.subheader("💾 Export Results")
-
-    # Prepare export data
-    export_data = []
-    for parser_name, result in results.items():
-        if result:
-            opp = result.opportunity
-            export_data.append(
-                {
-                    "Parser": parser_name,
-                    "EBITDA_millions": opp.ebitda_millions,
-                    "Company": opp.company_name,
-                    "HQ_Location": opp.hq_location,
-                    "Sector": opp.sector,
-                    "Source_Domain": opp.source_domain,
-                    "Recipient": opp.recipient,
-                    "Raw_EBITDA_Text": opp.raw_ebitda_text,
-                    "Processing_Time_s": result.processing_time_seconds,
-                    "Extraction_Source": result.extraction_source,
-                }
-            )
-
-    if export_data:
-        df_export = pd.DataFrame(export_data)
-        csv = df_export.to_csv(index=False)
-
-        st.download_button(
-            label="📥 Download Results as CSV",
-            data=csv,
-            file_name=f"parser_results_{selected_email.replace('.msg', '')}.csv",
-            mime="text/csv",
-        )
 
 
 if __name__ == "__main__":
