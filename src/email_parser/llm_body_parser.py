@@ -66,10 +66,6 @@ class LLMBodyParser(BaseParser):
         # Use plain text body, fall back to HTML if needed
         body_text = email_data.body_plain or email_data.body_html or ""
         
-        # Remove email signature to avoid extracting irrelevant information
-        from email_parser.utils import remove_email_signature
-        body_text = remove_email_signature(body_text)
-        
         # Get email year for context
         email_year = email_data.date.year if email_data.date else datetime.now().year
         
@@ -134,8 +130,8 @@ FOR SECTOR:
 - Confidence: highly specific (0.95), general category (0.7), implied (0.5)
 
 GENERAL:
-- **IGNORE SIGNATURES**: The email signature has already been removed, so focus only on the main email content
-- Include source: "email body", "subject line", etc. (signatures are already filtered out)
+- **DO NOT extract from email signatures**: Ignore any information found in email signatures (contact details, disclaimers, "Sent from" messages, etc.)
+- Include source: "email body", "subject line", etc. (NEVER use "signature" as a source)
 - Include raw_text: the exact snippet where you found this
 - Return empty arrays if no options found
 - Proper JSON only (double quotes, no trailing commas)
@@ -219,25 +215,37 @@ Return only the JSON object, no additional text or explanation."""
             company_options = []
             sector_options = []
             
-            # Convert ebitda_options
+            # Convert ebitda_options and filter out signature sources
             for opt in extracted_data.get('ebitda_options', []):
                 if isinstance(opt, dict) and 'value' in opt:
-                    ebitda_options.append(FieldOption(**opt))
+                    source = opt.get('source', '').lower()
+                    # Filter out any results from signatures
+                    if 'signature' not in source:
+                        ebitda_options.append(FieldOption(**opt))
             
-            # Convert location_options
+            # Convert location_options and filter out signature sources
             for opt in extracted_data.get('location_options', []):
                 if isinstance(opt, dict) and 'value' in opt:
-                    location_options.append(FieldOption(**opt))
+                    source = opt.get('source', '').lower()
+                    # Filter out any results from signatures
+                    if 'signature' not in source:
+                        location_options.append(FieldOption(**opt))
             
-            # Convert company_options  
+            # Convert company_options and filter out signature sources
             for opt in extracted_data.get('company_options', []):
                 if isinstance(opt, dict) and 'value' in opt:
-                    company_options.append(FieldOption(**opt))
+                    source = opt.get('source', '').lower()
+                    # Filter out any results from signatures
+                    if 'signature' not in source:
+                        company_options.append(FieldOption(**opt))
             
-            # Convert sector_options
+            # Convert sector_options and filter out signature sources
             for opt in extracted_data.get('sector_options', []):
                 if isinstance(opt, dict) and 'value' in opt:
-                    sector_options.append(FieldOption(**opt))
+                    source = opt.get('source', '').lower()
+                    # Filter out any results from signatures
+                    if 'signature' not in source:
+                        sector_options.append(FieldOption(**opt))
             
             # Use highest confidence options as primary values
             best_ebitda = max(ebitda_options, key=lambda x: x.confidence) if ebitda_options else None

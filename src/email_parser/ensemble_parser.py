@@ -20,7 +20,6 @@ from dotenv import load_dotenv
 from email_parser.base import BaseParser, EmailData, InvestmentOpportunity, ParserResult
 from email_parser.layout_attachment_parser import LayoutLLMParser
 from email_parser.llm_body_parser import LLMBodyParser
-from email_parser.ner_body_parser import NERBodyParser
 from email_parser.ocr_attachment_parser import OCRAttachmentParser
 from email_parser.utils import fuzzy_match_ebitda
 
@@ -41,7 +40,6 @@ class EnsembleParser(BaseParser):
     def __init__(
         self,
         use_llm: bool = True,
-        use_ner: bool = True,
         use_ocr: bool = False,
         use_vision: bool = True,
         results_csv_path: Optional[Path] = None,
@@ -50,7 +48,6 @@ class EnsembleParser(BaseParser):
 
         Args:
             use_llm: Include LLM body parser
-            use_ner: Include NER body parser
             use_ocr: Include OCR attachment parser
             use_vision: Include vision attachment parser
             results_csv_path: Path to results.csv for historical validation
@@ -60,13 +57,6 @@ class EnsembleParser(BaseParser):
         self.parsers = []
 
         # Initialize selected parsers
-        if use_ner:
-            try:
-                self.parsers.append(("NER", NERBodyParser()))
-                self.logger.info("Added NER parser to ensemble")
-            except Exception as e:
-                self.logger.warning(f"Failed to initialize NER parser: {e}")
-
         if use_llm:
             try:
                 self.parsers.append(("LLM", LLMBodyParser()))

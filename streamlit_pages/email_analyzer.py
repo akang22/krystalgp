@@ -26,7 +26,6 @@ if hasattr(st, "secrets"):
 from email_parser.ensemble_parser import EnsembleParser
 from email_parser.layout_attachment_parser import LayoutLLMParser
 from email_parser.llm_body_parser import LLMBodyParser
-from email_parser.ner_body_parser import NERBodyParser
 from email_parser.ocr_attachment_parser import OCRAttachmentParser
 from email_parser.ocr_ner_parser import OCRNERParser
 
@@ -40,14 +39,6 @@ RESULTS_CSV = WORKSPACE / "results.csv"
 def get_parsers():
     """Initialize all parsers (cached)."""
     parsers = {}
-
-    try:
-        with st.spinner(
-            "Loading NER parser (may take ~30s on first run to download spaCy model)..."
-        ):
-            parsers["NER Body"] = NERBodyParser()
-    except Exception as e:
-        st.warning(f"⚠️ NER parser not available: {str(e)[:200]}")
 
     try:
         parsers["LLM Body"] = LLMBodyParser()

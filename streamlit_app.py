@@ -25,7 +25,6 @@ if hasattr(st, 'secrets'):
             os.environ[key] = st.secrets[key]
 
 from email_parser.llm_body_parser import LLMBodyParser
-from email_parser.ner_body_parser import NERBodyParser
 from email_parser.ocr_attachment_parser import OCRAttachmentParser
 from email_parser.ocr_ner_parser import OCRNERParser
 from email_parser.layout_attachment_parser import LayoutLLMParser
@@ -66,12 +65,6 @@ def load_results():
 def get_parsers():
     """Initialize all parsers (cached)."""
     parsers = {}
-    
-    # NER parser (always available)
-    try:
-        parsers['NER Body'] = NERBodyParser()
-    except Exception as e:
-        st.warning(f"Failed to initialize NER parser: {e}")
     
     # LLM parsers (require API key)
     try:
