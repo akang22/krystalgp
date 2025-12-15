@@ -17,6 +17,7 @@ from email_parser.utils import (
     extract_ebitda,
     extract_location,
     normalize_text,
+    remove_email_signature,
 )
 
 
@@ -238,6 +239,9 @@ class NERBodyParser(BaseParser):
         # Get email body text
         body_text = email_data.body_plain or email_data.body_html or ""
         subject = email_data.subject or ""
+        
+        # Remove email signature to avoid extracting irrelevant information
+        body_text = remove_email_signature(body_text)
         
         # Normalize text
         body_text = normalize_text(body_text)

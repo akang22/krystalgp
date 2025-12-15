@@ -272,3 +272,103 @@ def fuzzy_match_ebitda(predicted: Optional[float], actual: Optional[float],
     return abs(predicted - actual) <= tolerance
 
 
+def remove_email_signature(text: str) -> str:
+    """Remove email signature from email body text.
+    
+    Detects common signature patterns and removes everything from the signature
+    start to the end of the text. This helps prevent extracting irrelevant
+    information like sender contact details, disclaimers, etc.
+    
+    Args:
+        text: Email body text (plain text or HTML stripped)
+        
+    Returns:
+        Text with signature removed
+        
+    Examples:
+        >>> remove_email_signature("Hello\\n\\nBest regards,\\nJohn Doe\\njohn@example.com")
+        "Hello"
+    """
+    if not text:
+        return ""
+    
+    lines = text.split('\n')
+    signature_start = None
+    
+    # Common signature indicators (case-insensitive)
+    signature_indicators = [
+        r'^(best\s+)?regards,?',
+        r'^sincerely,?',
+        r'^thanks?,?',
+        r'^thank\s+you,?',
+        r'^cheers,?',
+        r'^all\s+the\s+best,?',
+        r'^yours\s+(truly|sincerely),?',
+        r'^sent\s+from',
+        r'^sent\s+via',
+        r'^sent\s+using',
+        r'^get\s+outlook',
+        r'^confidential',
+        r'^this\s+email\s+is\s+confidential',
+        r'^disclaimer',
+        r'^privacy\s+notice',
+        r'^-----',
+        r'^_____',
+        r'^---',
+        r'^___',
+    ]
+    
+    # Look for signature start patterns
+    for i, line in enumerate(lines):
+        line_stripped = line.strip()
+        if not line_stripped:
+            continue
+        
+        # Check for signature indicators
+        for pattern in signature_indicators:
+            if re.match(pattern, line_stripped, re.IGNORECASE):
+                signature_start = i
+                break
+        
+        # Check for email address patterns (common in signatures)
+        if re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', line_stripped):
+            # Email address found - likely signature if it's not in the first few lines
+            if i > len(lines) * 0.3:  # Not in first 30% of email
+                signature_start = i
+                break
+        
+        # Check for phone number patterns (common in signatures)
+        phone_patterns = [
+            r'\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b',  # US/Canada format
+            r'\b\(\d{3}\)\s*\d{3}[-.\s]?\d{4}\b',  # (123) 456-7890
+            r'\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\s*(ext|extension|ext\.)\s*\d+\b',  # With extension
+        ]
+        for pattern in phone_patterns:
+            if re.search(pattern, line_stripped):
+                # Phone number found - likely signature if it's not in the first few lines
+                if i > len(lines) * 0.3:  # Not in first 30% of email
+                    signature_start = i
+                    break
+        
+        # Check for common signature separators
+        if line_stripped in ['---', '___', '-----', '_____']:
+            # If separator is followed by signature-like content, mark as start
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                # Check if next line looks like signature (name, email, etc.)
+                if (re.search(r'@', next_line) or 
+                    re.search(r'^\w+\s+\w+$', next_line) or  # Name pattern
+                    re.search(r'phone|tel|cell', next_line, re.IGNORECASE)):
+                    signature_start = i
+                    break
+    
+    # If signature found, return text up to that point
+    if signature_start is not None:
+        # Include a few lines before signature in case it's part of closing
+        # But don't go too far back (max 2 lines)
+        cutoff = max(0, signature_start - 2)
+        return '\n'.join(lines[:cutoff]).strip()
+    
+    return text
+
+

@@ -66,6 +66,10 @@ class LLMBodyParser(BaseParser):
         # Use plain text body, fall back to HTML if needed
         body_text = email_data.body_plain or email_data.body_html or ""
         
+        # Remove email signature to avoid extracting irrelevant information
+        from email_parser.utils import remove_email_signature
+        body_text = remove_email_signature(body_text)
+        
         # Get email year for context
         email_year = email_data.date.year if email_data.date else datetime.now().year
         
@@ -130,7 +134,8 @@ FOR SECTOR:
 - Confidence: highly specific (0.95), general category (0.7), implied (0.5)
 
 GENERAL:
-- Include source: "email body", "subject line", "signature", etc.
+- **IGNORE SIGNATURES**: The email signature has already been removed, so focus only on the main email content
+- Include source: "email body", "subject line", etc. (signatures are already filtered out)
 - Include raw_text: the exact snippet where you found this
 - Return empty arrays if no options found
 - Proper JSON only (double quotes, no trailing commas)
