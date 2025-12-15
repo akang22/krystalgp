@@ -13,8 +13,13 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import ValidationError
 
-from email_parser.base import (BaseParser, EmailData, FieldOption,
-                               InvestmentOpportunity, ParserResult)
+from email_parser.base import (
+    BaseParser,
+    EmailData,
+    FieldOption,
+    InvestmentOpportunity,
+    ParserResult,
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -268,17 +273,8 @@ Return only the JSON object, no additional text or explanation."""
             elif "business_description" in extracted_data:
                 description = extracted_data.get("business_description", "").strip() or None
 
-            # Enforce 2-5 word limit by truncating if needed
             if description:
-                words = description.split()
-                word_count = len(words)
-                if word_count > 5:
-                    # Truncate to first 5 words
-                    description = " ".join(words[:5])
-                    self.logger.warning(f"Description exceeded 5 words ({word_count} words), truncated to: {description}")
-                elif word_count < 2:
-                    # If less than 2 words, try to expand or use fallback
-                    self.logger.warning(f"Description too short ({word_count} words): {description}")
+                word_count = len(description.split())
                 self.logger.info(f"✓ Extracted description ({word_count} words): {description}")
             else:
                 self.logger.warning("⚠️ No description found in LLM response")
@@ -334,14 +330,22 @@ Return only the JSON object, no additional text or explanation."""
             # Sector is now a single string value, not an array
             # Handle both old format (sector_options array) and new format (sector string)
             valid_sectors = {
-                "Retail", "Consumer Services", "Building Products", "Transportation Services",
-                "Healthcare", "Industrial Products", "Business Services", "Wholesale",
-                "Electronics", "Transportation Products", "Other"
+                "Retail",
+                "Consumer Services",
+                "Building Products",
+                "Transportation Services",
+                "Healthcare",
+                "Industrial Products",
+                "Business Services",
+                "Wholesale",
+                "Electronics",
+                "Transportation Products",
+                "Other",
             }
-            
+
             best_sector = None
             sector_options = []
-            
+
             # Check for new format (single sector string)
             if "sector" in extracted_data:
                 sector_value = extracted_data.get("sector", "").strip()
@@ -359,7 +363,7 @@ Return only the JSON object, no additional text or explanation."""
                         # Filter out any results from signatures
                         if "signature" not in source:
                             sector_options.append(FieldOption(**opt))
-                
+
                 if sector_options:
                     # Find first valid sector category
                     for opt in sorted(sector_options, key=lambda x: x.confidence, reverse=True):
@@ -369,7 +373,9 @@ Return only the JSON object, no additional text or explanation."""
                     # If no valid category found, default to "Other"
                     if not best_sector:
                         best_sector = "Other"
-                        self.logger.warning("No valid sector found in options, defaulting to 'Other'")
+                        self.logger.warning(
+                            "No valid sector found in options, defaulting to 'Other'"
+                        )
 
             # Use highest confidence options as primary values
             best_ebitda = (
@@ -390,7 +396,11 @@ Return only the JSON object, no additional text or explanation."""
                 ebitda_millions=best_ebitda.value if best_ebitda else None,
                 date=email_data.date,
                 company_name=best_company.value if best_company else None,
-                sector=best_sector if isinstance(best_sector, str) else (best_sector.value if best_sector else None),
+                sector=(
+                    best_sector
+                    if isinstance(best_sector, str)
+                    else (best_sector.value if best_sector else None)
+                ),
                 description=description,
                 raw_ebitda_text=best_ebitda.raw_text if best_ebitda else None,
                 ebitda_options=ebitda_options,
