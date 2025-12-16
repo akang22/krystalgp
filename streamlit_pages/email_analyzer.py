@@ -691,11 +691,16 @@ def display_summary_table(email_data, results: dict):
     receiver = "N/A"
     recipient_email = opp.recipient or (email_data.recipients[0] if email_data.recipients else None)
     if recipient_email:
-        # Extract username part (before @)
-        if "@" in recipient_email:
-            receiver = recipient_email.split("@")[0]
+        # First extract the actual email address (in case it's in format "Name <email@domain.com>")
+        import email.utils
+        parsed_addr = email.utils.parseaddr(recipient_email)
+        email_addr = parsed_addr[1] if parsed_addr[1] else recipient_email
+        
+        # Then extract username part (before @)
+        if "@" in email_addr:
+            receiver = email_addr.split("@")[0]
         else:
-            receiver = recipient_email
+            receiver = email_addr
 
     # Calculate investment criteria fit
     investment_fit = calculate_investment_criteria_fit(opp.hq_location, opp.ebitda_millions)
