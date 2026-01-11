@@ -73,11 +73,18 @@ models/
 *.key
 secrets.json
 
+# Google OAuth credentials (DO NOT COMMIT)
+credentials.json
+client_secret_*.apps.googleusercontent.com.json
+token.json
+*.json.credentials
+
 # Streamlit
 .streamlit/secrets.toml
 
 # Logs
 *.log
 logs/
+gmail_parser_*.log
 
 

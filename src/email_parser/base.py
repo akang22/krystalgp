@@ -421,6 +421,146 @@ class BaseParser(ABC):
             self.logger.error(f"Failed to extract eml file {eml_path}: {e}")
             raise
 
+    def extract_gmail_message(self, message: Dict[str, Any]) -> EmailData:
+        """Extract data from a Gmail API message object.
+
+        Args:
+            message: Gmail API message object (from messages.get with format='full')
+
+        Returns:
+            EmailData object with extracted email content
+
+        Raises:
+            Exception: If extraction fails
+        """
+        try:
+            payload = message.get("payload", {})
+            headers = payload.get("headers", [])
+
+            # Extract headers
+            header_dict = {h["name"].lower(): h["value"] for h in headers}
+
+            sender = header_dict.get("from", "")
+            subject = header_dict.get("subject", "")
+
+            # Extract recipients
+            recipients = []
+            for header_name in ["to", "cc", "bcc"]:
+                header_value = header_dict.get(header_name, "")
+                if header_value:
+                    for addr in email.utils.getaddresses([header_value]):
+                        if addr[1]:  # email address exists
+                            recipients.append(addr[1])
+
+            # Extract date
+            date_str = header_dict.get("date", "")
+            date = None
+            if date_str:
+                try:
+                    date = parsedate_to_datetime(date_str)
+                except Exception:
+                    self.logger.warning(f"Could not parse date: {date_str}")
+
+            # Extract body and attachments
+            body_plain = None
+            body_html = None
+            attachments = []
+
+            def extract_parts(part: Dict[str, Any]) -> None:
+                """Recursively extract parts from multipart message."""
+                mime_type = part.get("mimeType", "")
+                body_data = part.get("body", {})
+                data = body_data.get("data", "")
+
+                # Handle attachments
+                filename = None
+                for header in part.get("headers", []):
+                    if header["name"].lower() == "content-disposition":
+                        disposition = header["value"]
+                        if "attachment" in disposition.lower():
+                            # Extract filename
+                            import re
+                            filename_match = re.search(
+                                r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)',
+                                disposition,
+                                re.IGNORECASE,
+                            )
+                            if filename_match:
+                                filename = filename_match.group(1).strip('"\'')
+                        break
+
+                if filename and data:
+                    # Decode base64 attachment
+                    import base64
+                    try:
+                        attachment_content = base64.urlsafe_b64decode(data)
+                        att = Attachment(
+                            filename=filename,
+                            content=attachment_content,
+                            content_type=mime_type,
+                            size_bytes=len(attachment_content),
+                        )
+                        attachments.append(att)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to decode attachment {filename}: {e}")
+                    return
+
+                # Handle body content
+                if data and not filename:
+                    try:
+                        import base64
+                        decoded = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+
+                        if mime_type == "text/plain" and body_plain is None:
+                            body_plain = decoded
+                        elif mime_type == "text/html" and body_html is None:
+                            body_html = decoded
+                    except Exception as e:
+                        self.logger.warning(f"Failed to decode body part: {e}")
+
+                # Recursively process sub-parts
+                for subpart in part.get("parts", []):
+                    extract_parts(subpart)
+
+            # Extract from payload
+            extract_parts(payload)
+
+            # If no body found, try to get from payload body directly
+            if not body_plain and not body_html:
+                body_data = payload.get("body", {})
+                data = body_data.get("data", "")
+                if data:
+                    try:
+                        import base64
+                        decoded = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+                        mime_type = payload.get("mimeType", "")
+                        if mime_type == "text/html":
+                            body_html = decoded
+                        else:
+                            body_plain = decoded
+                    except Exception:
+                        pass
+
+            email_data = EmailData(
+                sender=sender,
+                recipients=recipients,
+                subject=subject,
+                body_plain=body_plain,
+                body_html=body_html,
+                date=date,
+                attachments=attachments,
+            )
+
+            self.logger.info(
+                f"Extracted {len(attachments)} attachments from Gmail message {message.get('id', 'unknown')}"
+            )
+
+            return email_data
+
+        except Exception as e:
+            self.logger.error(f"Failed to extract Gmail message: {e}")
+            raise
+
     def extract_original_sender(self, email_data: EmailData) -> Optional[str]:
         """Extract original sender from forwarded email.
 

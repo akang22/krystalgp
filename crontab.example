@@ -1,0 +1,26 @@
+# Example crontab entry for Gmail parser
+# 
+# To install:
+# 1. Edit this file with your actual paths
+# 2. Run: crontab crontab.example
+#
+# Or edit directly: crontab -e
+
+# Run every hour at minute 0
+0 * * * * /path/to/krystalgp/scripts/run_gmail_parser_cron.sh
+
+# Alternative: Run every 30 minutes
+# */30 * * * * /path/to/krystalgp/scripts/run_gmail_parser_cron.sh
+
+# Alternative: Run daily at 9 AM
+# 0 9 * * * /path/to/krystalgp/scripts/run_gmail_parser_cron.sh
+
+# Alternative: Run every weekday at 8 AM
+# 0 8 * * 1-5 /path/to/krystalgp/scripts/run_gmail_parser_cron.sh
+
+
+
+
+
+
+
