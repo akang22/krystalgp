@@ -552,10 +552,10 @@ Return only the JSON object:"""
             bounding_boxes=all_bounding_boxes,
         )
 
-        self.logger.info(
-            f"Extracted from attachments: EBITDA=${opportunity.ebitda_millions}M, "
-            f"Location={opportunity.hq_location}"
-        )
+        log_msg = f"Extracted from attachments: EBITDA=${opportunity.ebitda_millions}M, Location={opportunity.hq_location}"
+        if opportunity.description:
+            log_msg += f", Description={opportunity.description}"
+        self.logger.info(log_msg)
 
         return opportunity
 

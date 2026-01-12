@@ -372,10 +372,10 @@ Return only the JSON object, no additional text."""
             raw_ebitda_text=merged_data.get('raw_ebitda_text'),
         )
         
-        self.logger.info(
-            f"Vision extracted: EBITDA=${opportunity.ebitda_millions}M, "
-            f"Location={opportunity.hq_location}, Company={opportunity.company_name}"
-        )
+        log_msg = f"Vision extracted: EBITDA=${opportunity.ebitda_millions}M, Location={opportunity.hq_location}, Company={opportunity.company_name}"
+        if opportunity.description:
+            log_msg += f", Description={opportunity.description}"
+        self.logger.info(log_msg)
         
         return opportunity
     
