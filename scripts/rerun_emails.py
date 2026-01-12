@@ -1,14 +1,29 @@
-"""Script to rerun parsing logic on the last email matching conditions.
+"""Script to rerun parsing logic on emails matching conditions with optional filter and limit.
 
 This script:
-1. Finds the last (most recent) email matching the search conditions
+1. Finds emails matching the search conditions (with optional filter)
 2. Ignores the parsed label filter (can rerun on already-processed emails)
-3. Uses the same parsing logic as parse_gmail_forwards.py
-4. Updates Google Sheet with results
+3. Supports limit parameter (1 for last email, None for all emails)
+4. Uses the same parsing logic as parse_gmail_forwards.py
+5. Updates Google Sheet with results
 
-Useful for debugging or reprocessing a specific email.
+Usage:
+    # Rerun last email (default)
+    python scripts/rerun_emails.py
+    
+    # Rerun last 5 emails
+    python scripts/rerun_emails.py --limit 5
+    
+    # Rerun all matching emails
+    python scripts/rerun_emails.py --limit None
+    
+    # Rerun with additional filter (e.g., subject contains "Project Wave")
+    python scripts/rerun_emails.py --filter "subject:Project Wave" --limit None
+
+Useful for debugging or reprocessing emails.
 """
 
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -35,50 +50,105 @@ from email_parser.ocr_attachment_parser import OCRAttachmentParser
 logger = parse_gmail_forwards.logger
 
 
-def search_last_email(
+def search_emails_with_filter(
     gmail_service: Any,
     search_patterns: str,
     recipient_filter: Optional[str] = None,
-    max_results: int = 1,
+    additional_filter: Optional[str] = None,
+    limit: Optional[int] = 1,
 ) -> List[Dict[str, Any]]:
-    """Search for the last (most recent) email matching conditions.
+    """Search for emails matching conditions with optional filter and limit.
     
     This is similar to search_gmail_forwards but:
     - Does NOT exclude the parsed label (can find already-processed emails)
-    - Returns only the most recent email
-    - Sorts by date descending
+    - Supports additional filter string
+    - Supports limit parameter (None = all emails with pagination)
     
     Args:
         gmail_service: Gmail API service object
-        search_patterns: Email search patterns
+        search_patterns: Email search patterns (from env)
         recipient_filter: Recipient email address to filter by
-        max_results: Maximum number of results (default 1 for last email)
+        additional_filter: Additional Gmail search filter (e.g., "subject:Project Wave")
+        limit: Maximum number of results (None = all, default 1 for last email)
         
     Returns:
-        List of message dicts (usually just 1)
+        List of message dicts
     """
-    # Build query WITHOUT the parsed label exclusion
-    query = parse_gmail_forwards.build_gmail_search_query(
+    # Build base query WITHOUT the parsed label exclusion
+    base_query = parse_gmail_forwards.build_gmail_search_query(
         search_patterns=search_patterns,
         parsed_label_name=None,  # Don't exclude parsed emails
         recipient_filter=recipient_filter,
     )
     
-    logger.info(f"Searching for last email with query: {query}")
+    # Add additional filter if provided
+    if additional_filter:
+        query = f"({base_query}) {additional_filter}"
+    else:
+        query = base_query
+    
+    logger.info(f"Searching for emails with query: {query}")
+    if limit:
+        logger.info(f"Limit: {limit} email(s)")
+    else:
+        logger.info("Limit: None (processing all matching emails)")
     
     try:
-        # Search and get results sorted by date (newest first)
-        results = (
-            gmail_service.users()
-            .messages()
-            .list(userId="me", q=query, maxResults=max_results)
-            .execute()
-        )
+        all_messages = []
+        page_token = None
         
-        messages = results.get("messages", [])
-        logger.info(f"Found {len(messages)} message(s)")
+        # If limit is None, we need to paginate through all results
+        # Gmail API maxResults per page is 500
+        max_results_per_page = 500
         
-        return messages
+        while True:
+            # Determine how many to fetch in this page
+            if limit is None:
+                # Fetch full page, we'll stop when no more results
+                fetch_count = max_results_per_page
+            else:
+                # Fetch only what we need
+                remaining = limit - len(all_messages)
+                if remaining <= 0:
+                    break
+                fetch_count = min(remaining, max_results_per_page)
+            
+            # Build request
+            request_params = {
+                "userId": "me",
+                "q": query,
+                "maxResults": fetch_count,
+            }
+            if page_token:
+                request_params["pageToken"] = page_token
+            
+            # Execute request
+            results = (
+                gmail_service.users()
+                .messages()
+                .list(**request_params)
+                .execute()
+            )
+            
+            messages = results.get("messages", [])
+            all_messages.extend(messages)
+            
+            logger.info(f"Found {len(messages)} messages in this page (total: {len(all_messages)})")
+            
+            # Check if we should continue
+            if limit is not None and len(all_messages) >= limit:
+                # We've reached the limit
+                all_messages = all_messages[:limit]
+                break
+            
+            # Check if there are more pages
+            page_token = results.get("nextPageToken")
+            if not page_token:
+                # No more pages
+                break
+        
+        logger.info(f"Found {len(all_messages)} message(s) total")
+        return all_messages
         
     except Exception as error:
         logger.error(f"Error searching Gmail: {error}")
@@ -215,9 +285,56 @@ def process_single_email(
 
 
 def main():
-    """Main function to rerun parsing on last email."""
+    """Main function to rerun parsing on emails with filter and limit."""
+    parser = argparse.ArgumentParser(
+        description="Rerun parsing logic on emails matching conditions",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Rerun last email (default)
+  python scripts/rerun_emails.py
+  
+  # Rerun last 5 emails
+  python scripts/rerun_emails.py --limit 5
+  
+  # Rerun all matching emails
+  python scripts/rerun_emails.py --limit None
+  
+  # Rerun with additional filter
+  python scripts/rerun_emails.py --filter "subject:Project Wave" --limit None
+        """
+    )
+    
+    parser.add_argument(
+        "--limit",
+        type=lambda x: None if x.lower() == "none" else int(x),
+        default=1,
+        help="Maximum number of emails to process (default: 1 for last email, None for all)",
+    )
+    
+    parser.add_argument(
+        "--filter",
+        type=str,
+        default=None,
+        help="Additional Gmail search filter (e.g., 'subject:Project Wave')",
+    )
+    
+    parser.add_argument(
+        "--update-label",
+        action="store_true",
+        help="Add parsed label after processing",
+    )
+    
+    parser.add_argument(
+        "--mark-read",
+        action="store_true",
+        help="Mark emails as read and archive after processing",
+    )
+    
+    args = parser.parse_args()
+    
     logger.info("=" * 80)
-    logger.info("Rerun Last Email Parser - Starting")
+    logger.info("Rerun Emails Parser - Starting")
     logger.info("=" * 80)
     
     # Get configuration from environment (same as main script)
@@ -244,8 +361,12 @@ def main():
     logger.info(f"Configuration:")
     logger.info(f"  Search Patterns: {search_patterns}")
     logger.info(f"  Recipient Filter: {recipient_filter or 'None (all recipients)'}")
+    logger.info(f"  Additional Filter: {args.filter or 'None'}")
+    logger.info(f"  Limit: {args.limit if args.limit is not None else 'None (all emails)'}")
     logger.info(f"  Note: Parsed label filter is IGNORED (will find already-processed emails)")
     logger.info(f"  Sheet ID: {sheet_id}")
+    logger.info(f"  Update Label: {args.update_label}")
+    logger.info(f"  Mark Read: {args.mark_read}")
     
     # Authenticate
     logger.info("\nAuthenticating with Gmail API...")
@@ -260,16 +381,21 @@ def main():
         logger.info(f"\nManaging label: {parsed_label_name}")
         parsed_label_id = parse_gmail_forwards.get_or_create_label(gmail_service, parsed_label_name)
     
-    # Search for last email (ignoring parsed label)
-    logger.info(f"\nSearching for LAST email matching: {search_patterns}...")
-    messages = search_last_email(gmail_service, search_patterns, recipient_filter, max_results=1)
+    # Search for emails (ignoring parsed label)
+    logger.info(f"\nSearching for emails matching: {search_patterns}...")
+    messages = search_emails_with_filter(
+        gmail_service=gmail_service,
+        search_patterns=search_patterns,
+        recipient_filter=recipient_filter,
+        additional_filter=args.filter,
+        limit=args.limit,
+    )
     
     if not messages:
         logger.info("No emails found matching conditions")
         return
     
-    message_id = messages[0]["id"]
-    logger.info(f"Found email: {message_id}")
+    logger.info(f"Found {len(messages)} email(s) to process")
     
     # Initialize parsers (same as main script)
     logger.info("\nInitializing parsers...")
@@ -303,22 +429,35 @@ def main():
         logger.error("No parsers available. Check your configuration.")
         sys.exit(1)
     
-    # Process the email (don't update label or mark as read by default)
-    success = process_single_email(
-        gmail_service=gmail_service,
-        sheets_service=sheets_service,
-        message_id=message_id,
-        parsers=parsers,
-        parsed_label_id=parsed_label_id,
-        update_label=False,  # Don't update label by default
-        mark_read=False,  # Don't mark as read by default
-    )
+    # Process all emails
+    logger.info(f"\nProcessing {len(messages)} email(s)...")
+    success_count = 0
+    error_count = 0
+    
+    for idx, message in enumerate(messages, 1):
+        message_id = message["id"]
+        logger.info(f"\n[{idx}/{len(messages)}] Processing message {message_id}...")
+        
+        success = process_single_email(
+            gmail_service=gmail_service,
+            sheets_service=sheets_service,
+            message_id=message_id,
+            parsers=parsers,
+            parsed_label_id=parsed_label_id,
+            update_label=args.update_label,
+            mark_read=args.mark_read,
+        )
+        
+        if success:
+            success_count += 1
+        else:
+            error_count += 1
     
     logger.info("\n" + "=" * 80)
-    if success:
-        logger.info("Processing complete!")
-    else:
-        logger.info("Processing failed!")
+    logger.info("Processing complete!")
+    logger.info(f"  Processed: {len(messages)}")
+    logger.info(f"  Successful: {success_count}")
+    logger.info(f"  Errors: {error_count}")
     logger.info("=" * 80)
 
 
