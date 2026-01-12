@@ -517,9 +517,11 @@ def format_row_for_sheet(
     # Sector
     sector = opportunity.sector or "N/A"
 
-    # Description (prefer LLM-generated, fallback to subject)
+    # Description (use final opportunity from ensemble parser, which combines all descriptions)
     description = "N/A"
-    if llm_body_result and llm_body_result.opportunity:
+    if opportunity and hasattr(opportunity, "description") and opportunity.description:
+        description = opportunity.description
+    elif llm_body_result and llm_body_result.opportunity:
         llm_opp = llm_body_result.opportunity
         if hasattr(llm_opp, "description") and llm_opp.description:
             description = llm_opp.description
