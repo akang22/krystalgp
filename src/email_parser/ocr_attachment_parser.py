@@ -89,21 +89,24 @@ class OCRAttachmentParser(BaseParser):
                 self.logger.info(f"Using tesseract at: {tesseract_path}")
             else:
                 self.logger.warning(f"Specified tesseract path not found: {tesseract_cmd}")
-        elif os.getenv("TESSERACT_CMD"):
+
+        if not tesseract_found and os.getenv("TESSERACT_CMD"):
             tesseract_env = os.getenv("TESSERACT_CMD")
             if os.path.exists(tesseract_env) or shutil.which(tesseract_env):
                 tesseract_path = tesseract_env
                 tesseract_found = True
                 self.logger.info(f"Using tesseract from TESSERACT_CMD: {tesseract_path}")
             else:
-                self.logger.warning(f"TESSERACT_CMD path not found: {tesseract_env}")
-        else:
+                self.logger.warning(f"TESSERACT_CMD path not found: {tesseract_env}, will try PATH/common paths")
+
+        if not tesseract_found:
             # Try to find tesseract in PATH
             tesseract_path = shutil.which("tesseract")
             if tesseract_path:
                 tesseract_found = True
                 self.logger.info(f"Found tesseract in PATH at: {tesseract_path}")
-            elif not tesseract_found:  # Only try common paths if we haven't found it yet
+
+        if not tesseract_found:  # Only try common paths if we haven't found it yet
                 # Fallback: Check common installation paths (especially for macOS/Homebrew)
                 # This helps when Streamlit runs with a different PATH than the terminal
                 common_paths = []
