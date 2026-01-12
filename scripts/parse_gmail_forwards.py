@@ -553,13 +553,34 @@ def format_row_for_sheet(
                     hq_location = opportunity.hq_location
                 # else: already set to "N/A (undetermined)" - low confidence
             else:
-                # Location exists but no matching option found - mark as undetermined
-                # This suggests the location was set without proper confidence tracking
-                hq_location = "N/A (undetermined)"
+                # Location exists but no matching option found
+                # This can happen when location comes from a fallback source (e.g., Vision parser)
+                # If location was extracted from attachment (more reliable), use it
+                # Otherwise mark as undetermined
+                # Check if this came from attachment-based parser by checking extraction_source
+                # Since we don't have direct access, we'll be conservative and use it
+                # if it's a reasonable location (not just "Canada" or too generic)
+                location_value = opportunity.hq_location
+                # Generic locations that might be unreliable
+                generic_locations = ["Canada", "North America", "United States", "US", "USA"]
+                if location_value not in generic_locations:
+                    # More specific location - likely reliable even without confidence score
+                    hq_location = opportunity.hq_location
+                else:
+                    # Generic location without confidence - mark as undetermined
+                    hq_location = "N/A (undetermined)"
         else:
-            # No location options available - mark as undetermined
-            # Without confidence scores, we can't verify reliability
-            hq_location = "N/A (undetermined)"
+            # No location options available
+            # If location was extracted, it likely came from a fallback source
+            # Use it if it's specific enough, otherwise mark as undetermined
+            location_value = opportunity.hq_location
+            generic_locations = ["Canada", "North America", "United States", "US", "USA"]
+            if location_value and location_value not in generic_locations:
+                # Specific location (e.g., "Western Canada", "Vancouver, BC") - use it
+                hq_location = opportunity.hq_location
+            else:
+                # Generic or missing location - mark as undetermined
+                hq_location = "N/A (undetermined)"
 
     # Source
     source = opportunity.source_domain or "N/A"
