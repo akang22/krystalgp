@@ -532,8 +532,34 @@ def format_row_for_sheet(
     else:
         ebitda = "N/A (undetermined)"
 
-    # HQ Location
-    hq_location = opportunity.hq_location or "N/A (undetermined)"
+    # HQ Location - check confidence threshold
+    # If location has low confidence (< 0.75) or no location options, mark as undetermined
+    LOCATION_CONFIDENCE_THRESHOLD = 0.75
+    hq_location = "N/A (undetermined)"
+    if opportunity.hq_location:
+        # Check if we have location options with confidence scores
+        if opportunity.location_options:
+            # Find the location option that matches the selected hq_location
+            matching_option = None
+            for loc_opt in opportunity.location_options:
+                if loc_opt.value == opportunity.hq_location:
+                    matching_option = loc_opt
+                    break
+            
+            # If we found a matching option, check its confidence
+            if matching_option:
+                # Use location if confidence >= threshold, otherwise mark as undetermined
+                if matching_option.confidence >= LOCATION_CONFIDENCE_THRESHOLD:
+                    hq_location = opportunity.hq_location
+                # else: already set to "N/A (undetermined)" - low confidence
+            else:
+                # Location exists but no matching option found - mark as undetermined
+                # This suggests the location was set without proper confidence tracking
+                hq_location = "N/A (undetermined)"
+        else:
+            # No location options available - mark as undetermined
+            # Without confidence scores, we can't verify reliability
+            hq_location = "N/A (undetermined)"
 
     # Source
     source = opportunity.source_domain or "N/A"
