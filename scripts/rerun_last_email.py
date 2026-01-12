@@ -150,6 +150,7 @@ def process_single_email(
                 if parser_name == "LLM Body":
                     llm_body_result = ParserResult(
                         opportunity=result,
+                        parser_name="LLM Body",
                         processing_time_seconds=parser_time,
                         extraction_source="body",
                     )
