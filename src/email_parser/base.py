@@ -468,6 +468,7 @@ class BaseParser(ABC):
 
             def extract_parts(part: Dict[str, Any]) -> None:
                 """Recursively extract parts from multipart message."""
+                nonlocal body_plain, body_html, attachments
                 mime_type = part.get("mimeType", "")
                 body_data = part.get("body", {})
                 data = body_data.get("data", "")
@@ -614,6 +615,56 @@ class BaseParser(ABC):
 
         # Fall back to immediate sender
         return email_data.sender
+
+    def extract_original_recipient(self, email_data: EmailData) -> Optional[str]:
+        """Extract original recipient from forwarded email.
+
+        For forwarded emails, parses the body to find the original "To:" line.
+        This represents who received the original email before it was forwarded.
+
+        Args:
+            email_data: Email data object
+
+        Returns:
+            Original recipient email address or None if not found
+        """
+        import re
+
+        # Check if this is a forwarded email
+        body = email_data.body_plain or ""
+        subject = email_data.subject or ""
+
+        # Look for forward indicators
+        is_forward = (
+            subject.upper().startswith("FW:")
+            or subject.upper().startswith("FWD:")
+            or "-----Original Message-----" in body
+            or "---------- Forwarded message ----------" in body
+        )
+
+        if is_forward:
+            # Try to find original "To:" line in body
+            to_patterns = [
+                r'To:\s*["\']?([^"\'\n<]+)<([^>]+)>',  # To: Name <email>
+                r"To:\s*<?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>?",  # To: email
+            ]
+
+            for pattern in to_patterns:
+                match = re.search(pattern, body, re.MULTILINE | re.IGNORECASE)
+                if match:
+                    # Extract email from match
+                    if len(match.groups()) >= 2:
+                        # Has name and email
+                        original_email = match.group(2).strip()
+                    else:
+                        # Just email
+                        original_email = match.group(1).strip()
+
+                    if original_email and "@" in original_email:
+                        self.logger.info(f"Found original recipient in forward: {original_email}")
+                        return original_email
+
+        return None
 
     def extract_domain(self, email: str) -> Optional[str]:
         """Extract domain from email address.

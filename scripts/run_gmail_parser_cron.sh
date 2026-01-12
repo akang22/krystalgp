@@ -32,6 +32,9 @@ else
     log "WARNING: .env file not found at $PROJECT_DIR/.env"
 fi
 
+# Add uv to PATH if it's in ~/.local/bin
+export PATH="$HOME/.local/bin:$PATH"
+
 # Check if uv is available
 if ! command -v uv &> /dev/null; then
     log "ERROR: uv command not found. Please install uv or adjust PATH."

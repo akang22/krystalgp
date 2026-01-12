@@ -32,11 +32,31 @@ from email_parser.ocr_attachment_parser import OCRAttachmentParser
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+log_dir = Path(__file__).parent.parent / "logs"
+log_dir.mkdir(exist_ok=True)
+log_file = log_dir / f"gmail_parser_methods_{time.strftime('%Y%m%d')}.log"
+
+# Create formatter
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(formatter)
+
+# File handler for detailed method tracking
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+
+# Configure root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(console_handler)
+root_logger.addHandler(file_handler)
+
 logger = logging.getLogger(__name__)
+logger.info(f"Logging to file: {log_file}")
 
 # Google API imports
 try:
@@ -212,7 +232,9 @@ def get_or_create_label(gmail_service: Any, label_name: str) -> str:
 
 
 @retry_on_rate_limit(max_retries=3, delay=5)
-def build_gmail_search_query(search_patterns: str, parsed_label_name: Optional[str] = None) -> str:
+def build_gmail_search_query(
+    search_patterns: str, parsed_label_name: Optional[str] = None, recipient_filter: Optional[str] = None
+) -> str:
     """Build Gmail search query from search patterns.
 
     Supports:
@@ -223,6 +245,7 @@ def build_gmail_search_query(search_patterns: str, parsed_label_name: Optional[s
     Args:
         search_patterns: Comma or space separated list of email/domain patterns
         parsed_label_name: Label name to exclude (already parsed emails)
+        recipient_filter: Recipient email address to filter by (e.g., "hello+krystalgptestinbox@photoncollective.dev")
 
     Returns:
         Gmail search query string
@@ -255,6 +278,10 @@ def build_gmail_search_query(search_patterns: str, parsed_label_name: Optional[s
         from_part = " OR ".join(from_conditions)
         query = f"({from_part})"
     
+    # Add recipient filter if provided
+    if recipient_filter:
+        query += f' to:"{recipient_filter}"'
+    
     # Exclude already parsed emails (use label name, not ID, for Gmail search)
     if parsed_label_name:
         # Escape spaces in label name if needed
@@ -265,7 +292,11 @@ def build_gmail_search_query(search_patterns: str, parsed_label_name: Optional[s
 
 
 def search_gmail_forwards(
-    gmail_service: Any, search_patterns: str, parsed_label_name: Optional[str] = None, max_results: int = 50
+    gmail_service: Any,
+    search_patterns: str,
+    parsed_label_name: Optional[str] = None,
+    recipient_filter: Optional[str] = None,
+    max_results: int = 50,
 ) -> List[Dict[str, Any]]:
     """Search Gmail for emails matching search patterns.
 
@@ -274,13 +305,14 @@ def search_gmail_forwards(
         search_patterns: Comma or space separated list of email/domain patterns
             Examples: "kpmg.com", "*@krystalgp.com", "user@example.com", "kpmg.com *@krystalgp.com"
         parsed_label_name: Label name to exclude (already parsed emails)
+        recipient_filter: Recipient email address to filter by (e.g., "hello+krystalgptestinbox@photoncollective.dev")
         max_results: Maximum number of results to return
 
     Returns:
         List of message objects
     """
     # Build search query
-    query = build_gmail_search_query(search_patterns, parsed_label_name)
+    query = build_gmail_search_query(search_patterns, parsed_label_name, recipient_filter)
 
     logger.info(f"Searching Gmail with query: {query}")
 
@@ -347,6 +379,38 @@ def add_label_to_message(gmail_service: Any, message_id: str, label_id: str) -> 
             logger.warning(f"Label may not have been added to message {message_id}. Label IDs: {label_ids}")
     except HttpError as error:
         logger.error(f"Error adding label to message {message_id}: {error}")
+        raise
+
+
+@retry_on_rate_limit(max_retries=3, delay=5)
+def mark_as_read_and_archive(gmail_service: Any, message_id: str) -> None:
+    """Mark a Gmail message as read and archive it.
+
+    Args:
+        gmail_service: Gmail API service object
+        message_id: Gmail message ID
+    """
+    try:
+        # Get INBOX label ID
+        labels = gmail_service.users().labels().list(userId="me").execute()
+        inbox_label_id = None
+        for label in labels.get("labels", []):
+            if label["name"] == "INBOX":
+                inbox_label_id = label["id"]
+                break
+
+        # Remove INBOX label (archives) and remove UNREAD label (marks as read)
+        modify_body = {"removeLabelIds": ["UNREAD"]}
+        if inbox_label_id:
+            modify_body["removeLabelIds"].append(inbox_label_id)
+
+        result = gmail_service.users().messages().modify(
+            userId="me", id=message_id, body=modify_body
+        ).execute()
+
+        logger.info(f"✓ Marked as read and archived message {message_id}")
+    except HttpError as error:
+        logger.error(f"Error marking as read/archiving message {message_id}: {error}")
         raise
 
 
@@ -430,13 +494,16 @@ def calculate_investment_criteria_fit(hq_location: Optional[str], ebitda_million
     return "Yes" if (is_western_canada and ebitda_in_range) else "No"
 
 
-def format_row_for_sheet(email_data: EmailData, opportunity: Any, llm_body_result: Optional[Any] = None) -> List[str]:
+def format_row_for_sheet(
+    email_data: EmailData, opportunity: Any, llm_body_result: Optional[Any] = None, extractor_parser: Optional[Any] = None
+) -> List[str]:
     """Format parser results for Google Sheet row.
 
     Args:
         email_data: EmailData object
         opportunity: InvestmentOpportunity from ensemble parser
         llm_body_result: Optional LLM Body parser result for description
+        extractor_parser: Parser instance to extract original recipient (optional)
 
     Returns:
         List of values for the row
@@ -463,17 +530,23 @@ def format_row_for_sheet(email_data: EmailData, opportunity: Any, llm_body_resul
     if opportunity.ebitda_millions is not None:
         ebitda = f"${opportunity.ebitda_millions:.2f}M"
     else:
-        ebitda = "N/A"
+        ebitda = "N/A (undetermined)"
 
     # HQ Location
-    hq_location = opportunity.hq_location or "N/A"
+    hq_location = opportunity.hq_location or "N/A (undetermined)"
 
     # Source
     source = opportunity.source_domain or "N/A"
 
-    # Receiver (extract username from recipient email)
+    # Receiver (extract username from original recipient email in forwarded message)
     receiver = "N/A"
-    recipient_email = opportunity.recipient or (email_data.recipients[0] if email_data.recipients else None)
+    # Try to extract original recipient from forwarded email
+    original_recipient = None
+    if extractor_parser and hasattr(extractor_parser, 'extract_original_recipient'):
+        original_recipient = extractor_parser.extract_original_recipient(email_data)
+    
+    # Use original recipient if found, otherwise fall back to opportunity.recipient
+    recipient_email = original_recipient or opportunity.recipient or (email_data.recipients[0] if email_data.recipients else None)
     if recipient_email:
         parsed_addr = email.utils.parseaddr(recipient_email)
         email_addr = parsed_addr[1] if parsed_addr[1] else recipient_email
@@ -572,6 +645,7 @@ def main():
         sys.exit(1)
 
     parsed_label_name = os.getenv("GMAIL_PARSED_LABEL", "ParsedByEmailParser")
+    recipient_filter = os.getenv("GMAIL_RECIPIENT_FILTER")  # e.g., "hello+krystalgptestinbox@photoncollective.dev"
     sheet_id = os.getenv("GOOGLE_SHEET_ID")
     if not sheet_id:
         logger.error("GOOGLE_SHEET_ID environment variable not set")
@@ -586,6 +660,7 @@ def main():
 
     logger.info(f"Configuration:")
     logger.info(f"  Search Patterns: {search_patterns}")
+    logger.info(f"  Recipient Filter: {recipient_filter or 'None (all recipients)'}")
     logger.info(f"  Parsed Label: {parsed_label_name}")
     logger.info(f"  Sheet ID: {sheet_id}")
     logger.info(f"  Sheet Name: {sheet_name}")
@@ -604,7 +679,7 @@ def main():
 
     # Search for emails
     logger.info(f"\nSearching for emails matching: {search_patterns}...")
-    messages = search_gmail_forwards(gmail_service, search_patterns, parsed_label_name, max_emails)
+    messages = search_gmail_forwards(gmail_service, search_patterns, parsed_label_name, recipient_filter, max_emails)
 
     if not messages:
         logger.info("No new emails to process")
@@ -615,36 +690,57 @@ def main():
     # Initialize parsers
     logger.info("\nInitializing parsers...")
     parsers = {}
+    parser_status = {}
+    
     try:
         parsers["LLM Body"] = LLMBodyParser()
-        logger.info("  ✓ LLM Body Parser")
+        parser_status["LLM Body"] = {"status": "initialized", "model": "gpt-4-turbo-preview"}
+        logger.info("  ✓ LLM Body Parser initialized")
     except Exception as e:
+        parser_status["LLM Body"] = {"status": "failed", "error": str(e)}
         logger.warning(f"  ✗ LLM Body Parser: {e}")
 
     try:
         parsers["OCR + LLM"] = OCRAttachmentParser()
-        logger.info("  ✓ OCR + LLM Parser")
+        parser_status["OCR + LLM"] = {"status": "initialized", "model": "gpt-4-turbo-preview"}
+        logger.info("  ✓ OCR + LLM Parser initialized")
     except Exception as e:
+        parser_status["OCR + LLM"] = {"status": "failed", "error": str(e)}
         logger.warning(f"  ✗ OCR + LLM Parser: {e}")
 
     try:
         parsers["Layout Vision"] = LayoutLLMParser()
-        logger.info("  ✓ Layout Vision Parser")
+        parser_status["Layout Vision"] = {"status": "initialized", "model": "gpt-4o"}
+        logger.info("  ✓ Layout Vision Parser initialized")
     except Exception as e:
+        parser_status["Layout Vision"] = {"status": "failed", "error": str(e)}
         logger.warning(f"  ✗ Layout Vision Parser: {e}")
 
     try:
         parsers["Final Results"] = EnsembleParser(use_llm=True, use_vision=True, use_ocr=False)
-        logger.info("  ✓ Ensemble Parser")
+        parser_status["Final Results"] = {"status": "initialized", "components": ["LLM", "Vision"]}
+        logger.info("  ✓ Ensemble Parser initialized")
     except Exception as e:
+        parser_status["Final Results"] = {"status": "failed", "error": str(e)}
         logger.warning(f"  ✗ Ensemble Parser: {e}")
 
     if not parsers:
         logger.error("No parsers available. Check your configuration.")
         sys.exit(1)
 
+    # Log parser initialization summary
+    logger.info("\n=== Parser Initialization Summary ===")
+    for parser_name, status in parser_status.items():
+        logger.info(f"  {parser_name}: {status['status']}")
+        if status['status'] == 'initialized' and 'model' in status:
+            logger.info(f"    Model: {status['model']}")
+        elif status['status'] == 'failed':
+            logger.info(f"    Error: {status['error']}")
+    logger.info("=" * 40)
+
     # Use any available parser for email extraction (all inherit from BaseParser)
     extractor_parser = list(parsers.values())[0]
+    logger.info(f"Using {extractor_parser.name} for email extraction")
 
     # Process each email
     logger.info(f"\nProcessing {len(messages)} emails...")
@@ -669,26 +765,71 @@ def main():
             # Run parsers
             results = {}
             llm_body_result = None
+            parser_execution_log = {}
 
+            logger.info("  === Running Parsers ===")
             for parser_name, parser in parsers.items():
+                parser_start_time = time.time()
+                parser_execution_log[parser_name] = {
+                    "start_time": parser_start_time,
+                    "status": "running",
+                    "method": "parse_data",
+                }
+                
                 if parser_name == "Final Results":
                     # Ensemble parser uses parse_data directly
                     try:
                         opportunity = parser.parse_data(email_data)
+                        parser_end_time = time.time()
+                        processing_time = parser_end_time - parser_start_time
+                        
                         results[parser_name] = opportunity
+                        parser_execution_log[parser_name].update({
+                            "status": "success",
+                            "processing_time": processing_time,
+                            "ebitda": opportunity.ebitda_millions,
+                            "company": opportunity.company_name,
+                            "location": opportunity.hq_location,
+                            "sector": opportunity.sector,
+                        })
+                        
                         logger.info(
                             f"  ✓ {parser_name}: EBITDA=${opportunity.ebitda_millions}M"
                             if opportunity.ebitda_millions
                             else f"  ✓ {parser_name}: No EBITDA"
                         )
+                        logger.info(f"    Processing time: {processing_time:.2f}s")
+                        logger.info(f"    Company: {opportunity.company_name or 'N/A'}")
+                        logger.info(f"    Location: {opportunity.hq_location or 'N/A'}")
+                        logger.info(f"    Sector: {opportunity.sector or 'N/A'}")
                     except Exception as e:
+                        parser_end_time = time.time()
+                        processing_time = parser_end_time - parser_start_time
+                        parser_execution_log[parser_name].update({
+                            "status": "failed",
+                            "processing_time": processing_time,
+                            "error": str(e),
+                        })
                         logger.error(f"  ✗ {parser_name} failed: {e}")
+                        logger.error(f"    Processing time: {processing_time:.2f}s")
                         results[parser_name] = None
                 else:
                     # Other parsers use parse_data
                     try:
                         opportunity = parser.parse_data(email_data)
+                        parser_end_time = time.time()
+                        processing_time = parser_end_time - parser_start_time
+                        
                         results[parser_name] = opportunity
+                        parser_execution_log[parser_name].update({
+                            "status": "success",
+                            "processing_time": processing_time,
+                            "ebitda": opportunity.ebitda_millions,
+                            "company": opportunity.company_name,
+                            "location": opportunity.hq_location,
+                            "sector": opportunity.sector,
+                        })
+                        
                         if parser_name == "LLM Body":
                             # Store the opportunity for description extraction
                             from email_parser.base import ParserResult
@@ -697,14 +838,41 @@ def main():
                                 parser_name="LLM Body",
                                 extraction_source="body",
                             )
+                        
                         logger.info(
                             f"  ✓ {parser_name}: EBITDA=${opportunity.ebitda_millions}M"
                             if opportunity.ebitda_millions
                             else f"  ✓ {parser_name}: No EBITDA"
                         )
+                        logger.info(f"    Processing time: {processing_time:.2f}s")
+                        logger.info(f"    Company: {opportunity.company_name or 'N/A'}")
+                        logger.info(f"    Location: {opportunity.hq_location or 'N/A'}")
+                        logger.info(f"    Sector: {opportunity.sector or 'N/A'}")
                     except Exception as e:
+                        parser_end_time = time.time()
+                        processing_time = parser_end_time - parser_start_time
+                        parser_execution_log[parser_name].update({
+                            "status": "failed",
+                            "processing_time": processing_time,
+                            "error": str(e),
+                        })
                         logger.error(f"  ✗ {parser_name} failed: {e}")
+                        logger.error(f"    Processing time: {processing_time:.2f}s")
                         results[parser_name] = None
+            
+            # Log parser execution summary
+            logger.info("  === Parser Execution Summary ===")
+            for parser_name, log_entry in parser_execution_log.items():
+                logger.info(f"  {parser_name}:")
+                logger.info(f"    Status: {log_entry['status']}")
+                logger.info(f"    Method: {log_entry['method']}")
+                logger.info(f"    Time: {log_entry.get('processing_time', 0):.2f}s")
+                if log_entry['status'] == 'success':
+                    logger.info(f"    EBITDA: ${log_entry.get('ebitda') or 'N/A'}M")
+                    logger.info(f"    Company: {log_entry.get('company') or 'N/A'}")
+                elif log_entry['status'] == 'failed':
+                    logger.info(f"    Error: {log_entry.get('error', 'Unknown')}")
+            logger.info("  " + "=" * 35)
 
             # Get final results
             final_opportunity = results.get("Final Results")
@@ -714,7 +882,7 @@ def main():
                 continue
 
             # Format row for sheet
-            row = format_row_for_sheet(email_data, final_opportunity, llm_body_result)
+            row = format_row_for_sheet(email_data, final_opportunity, llm_body_result, extractor_parser)
 
             # Append to sheet
             logger.info(f"  Appending to Google Sheet...")
@@ -722,6 +890,9 @@ def main():
 
             # Add label to mark as parsed
             add_label_to_message(gmail_service, message_id, parsed_label_id)
+
+            # Mark as read and archive
+            mark_as_read_and_archive(gmail_service, message_id)
 
             processed_count += 1
             logger.info(f"  ✓ Successfully processed message {message_id}")
