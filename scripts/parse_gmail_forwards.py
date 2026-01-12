@@ -766,7 +766,7 @@ def main():
         logger.warning(f"  ✗ Layout Vision Parser: {e}")
 
     try:
-        parsers["Final Results"] = EnsembleParser(use_llm=True, use_vision=True, use_ocr=False)
+        parsers["Final Results"] = EnsembleParser(use_llm=True, use_vision=True, use_ocr=True)
         parser_status["Final Results"] = {"status": "initialized", "components": ["LLM", "Vision"]}
         logger.info("  ✓ Ensemble Parser initialized")
     except Exception as e:
