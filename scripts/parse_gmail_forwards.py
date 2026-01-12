@@ -802,8 +802,8 @@ def main():
             # Get full message
             full_message = get_message_details(gmail_service, message_id)
 
-            # Extract email data from Gmail message
-            email_data = extractor_parser.extract_gmail_message(full_message)
+            # Extract email data from Gmail message (pass gmail_service for large attachments)
+            email_data = extractor_parser.extract_gmail_message(full_message, gmail_service=gmail_service)
 
             logger.info(f"  Subject: {email_data.subject}")
             logger.info(f"  From: {email_data.sender}")

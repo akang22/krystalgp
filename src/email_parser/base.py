@@ -421,11 +421,12 @@ class BaseParser(ABC):
             self.logger.error(f"Failed to extract eml file {eml_path}: {e}")
             raise
 
-    def extract_gmail_message(self, message: Dict[str, Any]) -> EmailData:
+    def extract_gmail_message(self, message: Dict[str, Any], gmail_service: Optional[Any] = None) -> EmailData:
         """Extract data from a Gmail API message object.
 
         Args:
             message: Gmail API message object (from messages.get with format='full')
+            gmail_service: Optional Gmail API service object for downloading large attachments
 
         Returns:
             EmailData object with extracted email content
@@ -436,6 +437,7 @@ class BaseParser(ABC):
         try:
             payload = message.get("payload", {})
             headers = payload.get("headers", [])
+            message_id = message.get("id", "")
 
             # Extract headers
             header_dict = {h["name"].lower(): h["value"] for h in headers}
@@ -466,12 +468,13 @@ class BaseParser(ABC):
             body_html = None
             attachments = []
 
-            def extract_parts(part: Dict[str, Any]) -> None:
+            def extract_parts(part: Dict[str, Any], part_id: str = "") -> None:
                 """Recursively extract parts from multipart message."""
                 nonlocal body_plain, body_html, attachments
                 mime_type = part.get("mimeType", "")
                 body_data = part.get("body", {})
                 data = body_data.get("data", "")
+                attachment_id = body_data.get("attachmentId")
 
                 # Handle attachments
                 filename = None
@@ -489,7 +492,26 @@ class BaseParser(ABC):
                             if filename_match:
                                 filename = filename_match.group(1).strip('"\'')
                         break
+                
+                # Also check for filename in headers (some attachments don't have Content-Disposition)
+                if not filename:
+                    for header in part.get("headers", []):
+                        if header["name"].lower() == "content-type":
+                            # Try to extract filename from Content-Type header
+                            content_type = header["value"]
+                            import re
+                            filename_match = re.search(r'name="?([^";]+)"?', content_type, re.IGNORECASE)
+                            if filename_match:
+                                filename = filename_match.group(1)
+                        elif header["name"].lower() == "x-attachment-id" and part.get("filename"):
+                            # Use filename from part if available
+                            filename = part.get("filename")
+                
+                # Use part filename as fallback
+                if not filename and part.get("filename"):
+                    filename = part["filename"]
 
+                # Handle attachment with inline data
                 if filename and data:
                     # Decode base64 attachment
                     import base64
@@ -504,6 +526,34 @@ class BaseParser(ABC):
                         attachments.append(att)
                     except Exception as e:
                         self.logger.warning(f"Failed to decode attachment {filename}: {e}")
+                    return
+                
+                # Handle attachment with attachmentId (large attachments)
+                if filename and attachment_id:
+                    if gmail_service:
+                        try:
+                            import base64
+                            # Download attachment using attachmentId
+                            att_result = (
+                                gmail_service.users()
+                                .messages()
+                                .attachments()
+                                .get(userId="me", messageId=message_id, id=attachment_id)
+                                .execute()
+                            )
+                            attachment_content = base64.urlsafe_b64decode(att_result["data"])
+                            att = Attachment(
+                                filename=filename,
+                                content=attachment_content,
+                                content_type=mime_type,
+                                size_bytes=len(attachment_content),
+                            )
+                            attachments.append(att)
+                            self.logger.debug(f"Downloaded attachment {filename} ({len(attachment_content)} bytes) using attachmentId")
+                        except Exception as e:
+                            self.logger.warning(f"Failed to download attachment {filename} using attachmentId: {e}")
+                    else:
+                        self.logger.warning(f"Attachment {filename} requires attachmentId download but gmail_service not provided")
                     return
 
                 # Handle body content
@@ -520,11 +570,12 @@ class BaseParser(ABC):
                         self.logger.warning(f"Failed to decode body part: {e}")
 
                 # Recursively process sub-parts
-                for subpart in part.get("parts", []):
-                    extract_parts(subpart)
+                for idx, subpart in enumerate(part.get("parts", [])):
+                    subpart_id = f"{part_id}/{idx}" if part_id else str(idx)
+                    extract_parts(subpart, subpart_id)
 
             # Extract from payload
-            extract_parts(payload)
+            extract_parts(payload, "0")
 
             # If no body found, try to get from payload body directly
             if not body_plain and not body_html:
