@@ -449,18 +449,30 @@ class EnsembleParser(BaseParser):
             self.logger.warning(f"Invalid sector '{best_sector}' from ensemble, defaulting to 'Other'")
             best_sector = "Other"
 
-        # Get description from LLM body parser first, then fallback to any available
+        # Get description - prioritize attachment parsers (OCR/Vision) over body parser
+        # Attachments typically have more detailed business descriptions
         description = None
-        # First try to get from LLM body parser results
+        
+        # First try attachment-based parsers (OCR, Vision) - they have better descriptions from PDFs
         for name, result in results:
-            if "LLM" in name.upper() and result and result.opportunity:
+            if result and result.opportunity and result.extraction_source == "attachment":
                 opp = result.opportunity
                 if hasattr(opp, "description") and opp.description:
                     description = opp.description
-                    self.logger.info(f"Using description from {name}: {description}")
+                    self.logger.info(f"Using description from {name} (attachment): {description}")
                     break
+        
+        # Fallback to LLM body parser if no attachment description
+        if not description:
+            for name, result in results:
+                if "LLM" in name.upper() and result and result.opportunity:
+                    opp = result.opportunity
+                    if hasattr(opp, "description") and opp.description:
+                        description = opp.description
+                        self.logger.info(f"Using description from {name} (body): {description}")
+                        break
 
-        # Fallback to any opportunity with description
+        # Last resort: any opportunity with description
         if not description:
             for opp in opportunities:
                 if hasattr(opp, "description") and opp.description:

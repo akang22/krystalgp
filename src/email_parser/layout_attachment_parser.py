@@ -151,6 +151,7 @@ class LayoutLLMParser(BaseParser):
 Analyze this document and extract the following information. Return ONLY a valid JSON object:
 
 {{
+  "description": "string or null - EXACTLY 2-5 words describing the business opportunity. Count your words! Examples: 'Leading Canadian Fiberglass Manufacturer' (4 words), 'Regional Distribution Business' (3 words), 'Industrial Products Company' (3 words). NO MORE THAN 5 WORDS.",
   "hq_location": "string or null - Headquarters location OR operating region (city, state/province, country, or region like 'Western Canada')",
   "ebitda_millions": number or null - EBITDA in millions of dollars,
   "company_name": "string or null - Company or project name",
@@ -159,6 +160,14 @@ Analyze this document and extract the following information. Return ONLY a valid
 }}
 
 **CRITICAL INSTRUCTIONS:**
+
+FOR DESCRIPTION (REQUIRED - MUST BE INCLUDED IF FOUND):
+- **WORD COUNT RULE**: Count your words! The description MUST be between 2 and 5 words total. NO MORE, NO LESS.
+- Look for business descriptions in: document title, executive summary, first paragraph, "About" sections, cover page
+- Examples: "Leading Canadian Fiberglass Manufacturer" (4 words), "Regional Distribution Business" (3 words), "Industrial Products Company" (3 words)
+- Extract the core business description, NOT the investment opportunity description
+- If you find phrases like "Opportunity to acquire a leading Canadian fiberglass manufacturer", extract "Leading Canadian Fiberglass Manufacturer" (4 words)
+- DO NOT include words like "opportunity", "acquire", "investment" - focus on WHAT the business IS
 
 FOR EBITDA:
 - PRIORITIZE: TTM, LTM, or {email_year} EBITDA (not {email_year - 1})
@@ -337,6 +346,19 @@ Return only the JSON object, no additional text."""
             self.logger.warning(f"Invalid sector '{sector}' from Layout parser, defaulting to 'Other'")
             sector = "Other"
 
+        # Extract and validate description
+        description = merged_data.get('description', '').strip() if merged_data.get('description') else None
+        if description:
+            word_count = len(description.split())
+            if word_count < 2 or word_count > 5:
+                self.logger.warning(f"Description '{description}' has {word_count} words (should be 2-5), truncating/adjusting")
+                # Try to fix: if too long, take first 5 words; if too short, use as-is (might be valid)
+                words = description.split()
+                if len(words) > 5:
+                    description = " ".join(words[:5])
+                    self.logger.info(f"Truncated description to: {description}")
+            self.logger.info(f"✓ Extracted description ({len(description.split())} words): {description}")
+
         # Create opportunity
         opportunity = InvestmentOpportunity(
             source_domain=source_domain,
@@ -346,6 +368,7 @@ Return only the JSON object, no additional text."""
             date=email_data.date,
             company_name=merged_data.get('company_name'),
             sector=sector,
+            description=description,
             raw_ebitda_text=merged_data.get('raw_ebitda_text'),
         )
         
