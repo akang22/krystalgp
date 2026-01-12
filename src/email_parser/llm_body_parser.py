@@ -248,9 +248,14 @@ Return only the cleaned email body text, no explanations:"""
         """
         # Use plain text body, fall back to HTML if needed
         body_text = email_data.body_plain or email_data.body_html or ""
+        original_length = len(body_text)
         
         # Strip email signature before processing using LLM (more accurate)
         body_text = self._strip_email_signature_with_llm(body_text)
+        
+        # Log if signature was stripped
+        if len(body_text) < original_length * 0.9:
+            self.logger.info(f"Stripped signature: {original_length} -> {len(body_text)} chars ({original_length - len(body_text)} chars removed)")
 
         # Get email year for context
         email_year = email_data.date.year if email_data.date else datetime.now().year
