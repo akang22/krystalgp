@@ -78,9 +78,19 @@ class LLMBodyParser(BaseParser):
         if not body_text or len(body_text) < 50:
             return body_text
         
-        # If body is very long, truncate for signature detection (signatures are at the end)
-        # Keep last 2000 chars for signature detection
-        body_for_detection = body_text[-2000:] if len(body_text) > 2000 else body_text
+        # For very long emails, we need to be smart about signature detection
+        # Signatures are typically at the end, so we can check the last portion
+        # But we need to preserve the main body content
+        
+        # If email is short enough, process the whole thing
+        if len(body_text) <= 3000:
+            body_for_detection = body_text
+            is_full_body = True
+        else:
+            # For long emails, check last 2500 chars (signatures are at the end)
+            # But we need to find where the signature starts to preserve the main body
+            body_for_detection = body_text[-2500:]
+            is_full_body = False
         
         try:
             signature_prompt = f"""Extract ONLY the main email body content, excluding any email signature.
@@ -91,6 +101,7 @@ Email signatures typically include:
 - "Sent from" messages (e.g., "Sent from my iPhone")
 - Social media links
 - Email client footers
+- Lines with just dashes or underscores (---, ___, etc.)
 
 Return ONLY the main email body text without the signature. If there's no signature, return the entire text unchanged.
 
@@ -104,33 +115,47 @@ Return only the cleaned email body text, no explanations:"""
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a text processing assistant. Extract email body content excluding signatures.",
+                        "content": "You are a text processing assistant. Extract email body content excluding signatures. Return only the cleaned text.",
                     },
                     {"role": "user", "content": signature_prompt},
                 ],
                 temperature=0.1,
-                max_tokens=min(2000, len(body_text) + 100),
+                max_tokens=min(3000, len(body_for_detection) + 200),
             )
             
             cleaned_text = response.choices[0].message.content.strip()
             
-            # If the cleaned text is significantly shorter, it likely removed a signature
-            # Otherwise, use original text (might not have had a signature)
-            if len(cleaned_text) < len(body_for_detection) * 0.7:
-                # Signature was likely removed, reconstruct full body
-                if len(body_text) > 2000:
-                    # Keep the original beginning, use cleaned ending
-                    main_body = body_text[:-2000]
-                    return (main_body + "\n" + cleaned_text).strip()
-                else:
+            # Determine if signature was removed
+            original_length = len(body_for_detection)
+            cleaned_length = len(cleaned_text)
+            
+            # If cleaned text is significantly shorter (more than 20% reduction), signature was likely removed
+            if cleaned_length < original_length * 0.8:
+                # Signature was removed
+                if is_full_body:
                     return cleaned_text
+                else:
+                    # Reconstruct: keep main body, use cleaned ending
+                    # Find where the signature likely starts by comparing lengths
+                    chars_removed = original_length - cleaned_length
+                    # Estimate where signature starts in full body
+                    signature_start_pos = len(body_text) - 2500 + (original_length - cleaned_length)
+                    # But be conservative - keep more of the original to avoid cutting content
+                    # Use the cleaned text from the end portion
+                    main_body = body_text[:-2500]
+                    return (main_body + "\n" + cleaned_text).strip()
             else:
-                # No significant signature detected, return original
-                return body_text
+                # No significant signature detected
+                if is_full_body:
+                    return cleaned_text  # Still use cleaned version (might have minor cleanup)
+                else:
+                    # No signature in the end portion, return original
+                    return body_text
                 
         except Exception as e:
-            self.logger.warning(f"Failed to strip signature with LLM: {e}, using original text")
-            return body_text
+            self.logger.warning(f"Failed to strip signature with LLM: {e}, using fallback method")
+            # Fallback to regex-based method
+            return self._strip_email_signature(body_text)
 
     def _strip_email_signature(self, body_text: str) -> str:
         """Strip email signature from body text.
