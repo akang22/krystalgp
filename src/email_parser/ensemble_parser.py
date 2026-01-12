@@ -14,8 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import os
 import pandas as pd
 from dotenv import load_dotenv
+from openai import OpenAI
 
 from email_parser.base import BaseParser, EmailData, InvestmentOpportunity, ParserResult
 from email_parser.layout_attachment_parser import LayoutLLMParser
@@ -43,6 +45,8 @@ class EnsembleParser(BaseParser):
         use_ocr: bool = False,
         use_vision: bool = True,
         results_csv_path: Optional[Path] = None,
+        api_key: Optional[str] = None,
+        model: str = "gpt-4o-mini",
     ):
         """Initialize ensemble parser.
 
@@ -51,8 +55,19 @@ class EnsembleParser(BaseParser):
             use_ocr: Include OCR attachment parser
             use_vision: Include vision attachment parser
             results_csv_path: Path to results.csv for historical validation
+            api_key: OpenAI API key for description combination (defaults to OPENAI_API_KEY env var)
+            model: OpenAI model to use for description combination
         """
         super().__init__(name="Ensemble-Parser")
+
+        # Initialize OpenAI client for description combination
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        if self.api_key:
+            self.client = OpenAI(api_key=self.api_key)
+            self.model = model
+        else:
+            self.client = None
+            self.logger.warning("No OpenAI API key found - description combination will be disabled")
 
         self.parsers = []
 
@@ -153,6 +168,119 @@ class EnsembleParser(BaseParser):
             return sum(largest_cluster) / len(largest_cluster)
 
         return None
+
+    def _combine_descriptions(self, results: List[Tuple[str, ParserResult]]) -> Optional[str]:
+        """Combine descriptions from multiple parsers using OpenAI.
+        
+        Collects all descriptions from different parsers and asks OpenAI to synthesize
+        the best description, noting that some may be incorrect.
+        
+        Args:
+            results: List of (parser_name, result) tuples
+            
+        Returns:
+            Combined description or None if no descriptions found
+        """
+        # Collect all descriptions with their sources
+        descriptions = []
+        for name, result in results:
+            if result and result.opportunity:
+                opp = result.opportunity
+                if hasattr(opp, "description") and opp.description:
+                    source_type = "attachment" if result.extraction_source == "attachment" else "body"
+                    descriptions.append({
+                        "text": opp.description,
+                        "source": name,
+                        "type": source_type
+                    })
+        
+        if not descriptions:
+            return None
+        
+        # If only one description, return it
+        if len(descriptions) == 1:
+            desc = descriptions[0]
+            self.logger.info(f"Using single description from {desc['source']} ({desc['type']}): {desc['text']}")
+            return desc['text']
+        
+        # Multiple descriptions - combine using OpenAI
+        if not self.client:
+            # Fallback: use attachment description if available, else first one
+            for desc in descriptions:
+                if desc['type'] == 'attachment':
+                    self.logger.info(f"Using description from {desc['source']} (attachment, no OpenAI): {desc['text']}")
+                    return desc['text']
+            self.logger.info(f"Using first description (no OpenAI): {descriptions[0]['text']}")
+            return descriptions[0]['text']
+        
+        # Build prompt with all descriptions
+        desc_list = "\n".join([
+            f"- {desc['text']} (from {desc['source']}, {desc['type']})"
+            for desc in descriptions
+        ])
+        
+        prompt = f"""You are helping to extract a business description for an investment opportunity.
+
+Multiple parsers have extracted different descriptions from the same document/email. Some may be incorrect, incomplete, or less accurate than others.
+
+DESCRIPTIONS FOUND:
+{desc_list}
+
+TASK:
+Combine these descriptions into ONE final description that:
+1. Is EXACTLY 2-5 words (count your words!)
+2. Best describes the core business/company
+3. Uses the most accurate and complete information
+4. Ignores incorrect or less relevant descriptions
+
+EXAMPLES:
+- "Leading Canadian Footwear Brand" (4 words)
+- "Regional Distribution Business" (3 words)
+- "Industrial Products Company" (3 words)
+- "Fiberglass Manufacturing Business" (3 words)
+
+If descriptions mention "opportunity to acquire" or similar investment language, extract just the business description part.
+
+Return ONLY the final description (2-5 words), nothing else."""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a precise data extraction assistant. Return only the description text, no additional explanation."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                max_tokens=50,
+            )
+            
+            combined_desc = response.choices[0].message.content.strip()
+            
+            # Validate word count
+            word_count = len(combined_desc.split())
+            if word_count < 2 or word_count > 5:
+                self.logger.warning(f"Combined description '{combined_desc}' has {word_count} words (should be 2-5)")
+                # Try to fix: if too long, take first 5 words
+                words = combined_desc.split()
+                if len(words) > 5:
+                    combined_desc = " ".join(words[:5])
+                    self.logger.info(f"Truncated combined description to: {combined_desc}")
+            
+            self.logger.info(f"✓ Combined {len(descriptions)} descriptions into: {combined_desc} ({len(combined_desc.split())} words)")
+            return combined_desc
+            
+        except Exception as e:
+            self.logger.error(f"Failed to combine descriptions with OpenAI: {e}")
+            # Fallback: use attachment description if available, else first one
+            for desc in descriptions:
+                if desc['type'] == 'attachment':
+                    self.logger.info(f"Using description from {desc['source']} (attachment, fallback): {desc['text']}")
+                    return desc['text']
+            self.logger.info(f"Using first description (fallback): {descriptions[0]['text']}")
+            return descriptions[0]['text']
 
     def _source_prioritized(self, results: List[Tuple[str, ParserResult]]) -> Optional[float]:
         """Prioritize values by source.
@@ -449,36 +577,8 @@ class EnsembleParser(BaseParser):
             self.logger.warning(f"Invalid sector '{best_sector}' from ensemble, defaulting to 'Other'")
             best_sector = "Other"
 
-        # Get description - prioritize attachment parsers (OCR/Vision) over body parser
-        # Attachments typically have more detailed business descriptions
-        description = None
-        
-        # First try attachment-based parsers (OCR, Vision) - they have better descriptions from PDFs
-        for name, result in results:
-            if result and result.opportunity and result.extraction_source == "attachment":
-                opp = result.opportunity
-                if hasattr(opp, "description") and opp.description:
-                    description = opp.description
-                    self.logger.info(f"Using description from {name} (attachment): {description}")
-                    break
-        
-        # Fallback to LLM body parser if no attachment description
-        if not description:
-            for name, result in results:
-                if "LLM" in name.upper() and result and result.opportunity:
-                    opp = result.opportunity
-                    if hasattr(opp, "description") and opp.description:
-                        description = opp.description
-                        self.logger.info(f"Using description from {name} (body): {description}")
-                        break
-
-        # Last resort: any opportunity with description
-        if not description:
-            for opp in opportunities:
-                if hasattr(opp, "description") and opp.description:
-                    description = opp.description
-                    self.logger.info(f"Using description from fallback: {description}")
-                    break
+        # Combine descriptions from all parsers using OpenAI
+        description = self._combine_descriptions(results)
 
         combined = InvestmentOpportunity(
             source_domain=next((o.source_domain for o in opportunities if o.source_domain), None),
