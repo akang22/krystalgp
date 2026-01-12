@@ -63,6 +63,75 @@ class LLMBodyParser(BaseParser):
 
         self.logger.info(f"Initialized LLM parser with model: {model}")
 
+    def _strip_email_signature_with_llm(self, body_text: str) -> str:
+        """Use OpenAI to strip email signature from body text.
+        
+        This uses a lightweight LLM call to identify and remove email signatures,
+        which is more accurate than regex-based detection.
+        
+        Args:
+            body_text: Raw email body text
+            
+        Returns:
+            Body text with signature removed
+        """
+        if not body_text or len(body_text) < 50:
+            return body_text
+        
+        # If body is very long, truncate for signature detection (signatures are at the end)
+        # Keep last 2000 chars for signature detection
+        body_for_detection = body_text[-2000:] if len(body_text) > 2000 else body_text
+        
+        try:
+            signature_prompt = f"""Extract ONLY the main email body content, excluding any email signature.
+
+Email signatures typically include:
+- Contact information (name, title, company, address, phone, email)
+- Disclaimers or legal notices
+- "Sent from" messages (e.g., "Sent from my iPhone")
+- Social media links
+- Email client footers
+
+Return ONLY the main email body text without the signature. If there's no signature, return the entire text unchanged.
+
+EMAIL TEXT:
+{body_for_detection}
+
+Return only the cleaned email body text, no explanations:"""
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",  # Use cheaper model for signature stripping
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a text processing assistant. Extract email body content excluding signatures.",
+                    },
+                    {"role": "user", "content": signature_prompt},
+                ],
+                temperature=0.1,
+                max_tokens=min(2000, len(body_text) + 100),
+            )
+            
+            cleaned_text = response.choices[0].message.content.strip()
+            
+            # If the cleaned text is significantly shorter, it likely removed a signature
+            # Otherwise, use original text (might not have had a signature)
+            if len(cleaned_text) < len(body_for_detection) * 0.7:
+                # Signature was likely removed, reconstruct full body
+                if len(body_text) > 2000:
+                    # Keep the original beginning, use cleaned ending
+                    main_body = body_text[:-2000]
+                    return (main_body + "\n" + cleaned_text).strip()
+                else:
+                    return cleaned_text
+            else:
+                # No significant signature detected, return original
+                return body_text
+                
+        except Exception as e:
+            self.logger.warning(f"Failed to strip signature with LLM: {e}, using original text")
+            return body_text
+
     def _strip_email_signature(self, body_text: str) -> str:
         """Strip email signature from body text.
         
@@ -155,8 +224,8 @@ class LLMBodyParser(BaseParser):
         # Use plain text body, fall back to HTML if needed
         body_text = email_data.body_plain or email_data.body_html or ""
         
-        # Strip email signature before processing
-        body_text = self._strip_email_signature(body_text)
+        # Strip email signature before processing using LLM (more accurate)
+        body_text = self._strip_email_signature_with_llm(body_text)
 
         # Get email year for context
         email_year = email_data.date.year if email_data.date else datetime.now().year
