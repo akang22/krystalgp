@@ -220,8 +220,15 @@ def main():
     logger.info("Rerun Last Email Parser - Starting")
     logger.info("=" * 80)
     
-    # Get configuration from environment
-    search_patterns = os.getenv("GMAIL_SEARCH_PATTERNS", "*@krystalgp.com")
+    # Get configuration from environment (same as main script)
+    search_patterns = os.getenv("GMAIL_SEARCH_DOMAIN") or os.getenv("GMAIL_SEARCH_PATTERNS")
+    if not search_patterns:
+        logger.error(
+            "GMAIL_SEARCH_DOMAIN or GMAIL_SEARCH_PATTERNS environment variable not set. "
+            "Examples: 'kpmg.com', '*@krystalgp.com', 'user@example.com', 'kpmg.com *@krystalgp.com'"
+        )
+        sys.exit(1)
+    
     recipient_filter = os.getenv("GMAIL_RECIPIENT_FILTER")
     parsed_label_name = os.getenv("GMAIL_PARSED_LABEL", "ParsedByEmailParser")
     
