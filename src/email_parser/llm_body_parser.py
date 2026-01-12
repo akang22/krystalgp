@@ -63,6 +63,86 @@ class LLMBodyParser(BaseParser):
 
         self.logger.info(f"Initialized LLM parser with model: {model}")
 
+    def _strip_email_signature(self, body_text: str) -> str:
+        """Strip email signature from body text.
+        
+        Email signatures typically appear after:
+        - Common delimiters: "---", "-- ", "___", "__"
+        - "Sent from" messages
+        - Contact information blocks
+        - Disclaimers
+        
+        Args:
+            body_text: Raw email body text
+            
+        Returns:
+            Body text with signature removed
+        """
+        if not body_text:
+            return body_text
+            
+        lines = body_text.split('\n')
+        signature_start = None
+        
+        # Common signature delimiters and markers
+        signature_delimiters = ['---', '--', '___', '__', '-- ']
+        signature_markers = [
+            'sent from',
+            'sent from my',
+            'get outlook for',
+            'get gmail for',
+            'this email was sent',
+            'confidentiality notice',
+            'confidential',
+            'disclaimer',
+        ]
+        
+        # Look for signature markers from the end of the email
+        # Signatures are typically at the bottom
+        for i in range(len(lines) - 1, max(0, len(lines) - 20), -1):  # Check last 20 lines
+            line = lines[i].strip()
+            stripped = line.lower()
+            
+            # Check for delimiter lines (usually just dashes/underscores)
+            if line in signature_delimiters or (len(line) <= 3 and all(c in '-_=' for c in line)):
+                signature_start = i
+                break
+            # Check for "Sent from" or similar patterns (case-insensitive)
+            if any(marker in stripped for marker in signature_markers):
+                signature_start = i
+                break
+            # Check for lines that look like signature blocks (contact info)
+            # Usually contains email addresses, phone numbers, or URLs
+            if '@' in line and ('.com' in line.lower() or '.ca' in line.lower() or '.org' in line.lower()):
+                # If it's in the last 30% of email, likely a signature
+                if i > len(lines) * 0.7:
+                    signature_start = i
+                    break
+        
+        # Also check for common signature patterns from the beginning
+        # (in case signature appears earlier due to forwarding)
+        if signature_start is None:
+            for i, line in enumerate(lines):
+                stripped = line.strip().lower()
+                # Check for delimiter lines
+                if line.strip() in signature_delimiters or (len(line.strip()) <= 3 and all(c in '-_=' for c in line.strip())):
+                    # If it's after the first few lines, could be a signature
+                    if i > 5:
+                        signature_start = i
+                        break
+                # Check for signature markers
+                if any(marker in stripped for marker in signature_markers):
+                    if i > 5:  # Not at the very beginning
+                        signature_start = i
+                        break
+        
+        # If we found a signature start, remove everything from there
+        if signature_start is not None:
+            body_text = '\n'.join(lines[:signature_start])
+            self.logger.debug(f"Stripped signature starting at line {signature_start} (total lines: {len(lines)})")
+        
+        return body_text.strip()
+
     def _build_extraction_prompt(self, email_data: EmailData) -> str:
         """Build prompt for GPT-4 to extract investment opportunity data.
 
@@ -74,6 +154,9 @@ class LLMBodyParser(BaseParser):
         """
         # Use plain text body, fall back to HTML if needed
         body_text = email_data.body_plain or email_data.body_html or ""
+        
+        # Strip email signature before processing
+        body_text = self._strip_email_signature(body_text)
 
         # Get email year for context
         email_year = email_data.date.year if email_data.date else datetime.now().year
