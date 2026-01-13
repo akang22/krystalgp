@@ -8,6 +8,8 @@ This script:
 """
 
 import base64
+import email.mime.text
+import email.mime.multipart
 import email.utils
 import logging
 import os
@@ -114,6 +116,7 @@ def retry_on_rate_limit(max_retries: int = 3, delay: int = 5):
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.modify",  # For labels
+    "https://www.googleapis.com/auth/gmail.send",  # For sending replies
     "https://www.googleapis.com/auth/spreadsheets",  # For Sheets
 ]
 
@@ -380,6 +383,46 @@ def add_label_to_message(gmail_service: Any, message_id: str, label_id: str) -> 
     except HttpError as error:
         logger.error(f"Error adding label to message {message_id}: {error}")
         raise
+
+
+@retry_on_rate_limit(max_retries=3, delay=5)
+def send_parsed_reply(gmail_service: Any, to_email: str, original_subject: str) -> None:
+    """Send a reply email with 'parsed' message.
+
+    Args:
+        gmail_service: Gmail API service object
+        to_email: Email address to send reply to
+        original_subject: Original email subject for reply subject
+        
+    Raises:
+        Exception: If reply fails (caller should handle gracefully)
+    """
+    # Get the authenticated user's email address
+    profile = gmail_service.users().getProfile(userId="me").execute()
+    from_email = profile.get("emailAddress")
+    
+    # Create reply subject (Re: prefix if not already present)
+    reply_subject = original_subject or ""
+    if reply_subject and not reply_subject.upper().startswith("RE:"):
+        reply_subject = f"Re: {reply_subject}"
+    elif not reply_subject:
+        reply_subject = "Re: parsed"
+    
+    # Create simple text message
+    message = email.mime.text.MIMEText("parsed")
+    message["to"] = to_email
+    message["from"] = from_email
+    message["subject"] = reply_subject
+    
+    # Encode message
+    raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    
+    # Send message
+    sent_message = gmail_service.users().messages().send(
+        userId="me", body={"raw": raw_message}
+    ).execute()
+    
+    logger.info(f"✓ Sent 'parsed' reply to {to_email} (Message ID: {sent_message.get('id')})")
 
 
 @retry_on_rate_limit(max_retries=3, delay=5)
@@ -811,6 +854,11 @@ def main():
             logger.info(f"  From: {email_data.sender}")
             logger.info(f"  Attachments: {len(email_data.attachments)}")
 
+            # Immediately label and archive to prevent duplicate processing
+            logger.info("  Marking as parsed, read, and archiving immediately...")
+            add_label_to_message(gmail_service, message_id, parsed_label_id)
+            mark_as_read_and_archive(gmail_service, message_id)
+
             # Run parsers
             results = {}
             llm_body_result = None
@@ -937,11 +985,13 @@ def main():
             logger.info(f"  Appending to Google Sheet...")
             append_to_sheet(sheets_service, sheet_id, sheet_name, row)
 
-            # Add label to mark as parsed
-            add_label_to_message(gmail_service, message_id, parsed_label_id)
-
-            # Mark as read and archive
-            mark_as_read_and_archive(gmail_service, message_id)
+            # Send reply to sender with "parsed"
+            if email_data.sender:
+                logger.info(f"  Sending 'parsed' reply to {email_data.sender}...")
+                try:
+                    send_parsed_reply(gmail_service, email_data.sender, email_data.subject or "")
+                except Exception as e:
+                    logger.warning(f"  Failed to send reply (continuing anyway): {e}")
 
             processed_count += 1
             logger.info(f"  ✓ Successfully processed message {message_id}")
